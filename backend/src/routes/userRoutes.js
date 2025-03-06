@@ -30,6 +30,9 @@ router.post("/login", validateLogin, userController.login);
 router.get("/profile", auth, userController.getProfile);
 router.patch("/profile", auth, userController.updateProfile);
 
+// Project member management routes
+router.get("/available", auth, userController.getAvailableUsers);
+
 // Admin only routes
 router.get("/users", auth, checkRole("Admin"), userController.getAllUsers);
 router.patch(

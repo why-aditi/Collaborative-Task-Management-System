@@ -34,6 +34,12 @@ const validateTask = [
     .withMessage("Invalid estimated hours"),
 ];
 
+const validateTaskStatus = [
+  body("status")
+    .isIn(["To-Do", "In Progress", "Completed"])
+    .withMessage("Invalid task status"),
+];
+
 const validateComment = [
   body("content").trim().notEmpty().withMessage("Comment content is required"),
 ];
@@ -47,6 +53,7 @@ router.get("/project/:projectId", taskController.getProjectTasks);
 router.get("/user", taskController.getUserTasks);
 router.get("/:taskId", taskController.getTask);
 router.patch("/:taskId", validateTask, taskController.updateTask);
+router.patch("/:taskId/status", validateTaskStatus, taskController.updateTask);
 router.delete("/:taskId", taskController.deleteTask);
 
 // Task comments

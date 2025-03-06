@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Container,
@@ -36,6 +36,7 @@ import {
 } from '@mui/icons-material'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
+import ProjectMembers from '../components/ProjectMembers'
 
 const ProjectDetail = () => {
   const { projectId } = useParams()
@@ -53,11 +54,7 @@ const ProjectDetail = () => {
     endDate: '',
   })
 
-  useEffect(() => {
-    fetchProject()
-  }, [projectId])
-
-  const fetchProject = async () => {
+  const fetchProject = useCallback(async () => {
     try {
       console.log('Fetching project with ID:', projectId);
       console.log('Current user:', user);
@@ -79,7 +76,11 @@ const ProjectDetail = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId, user]);
+
+  useEffect(() => {
+    fetchProject();
+  }, [fetchProject]);
 
   const handleOpenDialog = () => {
     setFormData({
@@ -123,6 +124,16 @@ const ProjectDetail = () => {
     }
   }
 
+  const handleTaskStatusUpdate = async (taskId, newStatus) => {
+    try {
+      await axios.patch(`/api/tasks/${taskId}/status`, { status: newStatus });
+      fetchProject(); // Refresh project data to get updated task status
+    } catch (err) {
+      console.error('Error updating task status:', err);
+      setError('Failed to update task status');
+    }
+  };
+
   const handleDelete = async () => {
     try {
       await axios.delete(`/api/projects/${projectId}`)
@@ -132,6 +143,10 @@ const ProjectDetail = () => {
       console.error(err)
     }
   }
+
+  const handleMembersUpdate = () => {
+    fetchProject();
+  };
 
   if (loading) {
     return (
@@ -229,20 +244,11 @@ const ProjectDetail = () => {
         {/* Team Members */}
         <Grid item xs={12} md={4}>
           <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              Team Members
-            </Typography>
-            <Box sx={{ mt: 2 }}>
-              <AvatarGroup max={4}>
-                {project.members.map((member) => (
-                  <Tooltip key={member._id} title={member.user.name}>
-                    <Avatar>
-                      <PersonIcon />
-                    </Avatar>
-                  </Tooltip>
-                ))}
-              </AvatarGroup>
-            </Box>
+            <ProjectMembers
+              projectId={projectId}
+              members={project?.members || []}
+              onMembersUpdate={handleMembersUpdate}
+            />
           </Paper>
         </Grid>
 
@@ -313,6 +319,14 @@ const ProjectDetail = () => {
                         }
                         size="small"
                         sx={{ mr: 1 }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const newStatus = 
+                            task.status === 'To-Do' ? 'In Progress' :
+                            task.status === 'In Progress' ? 'Completed' :
+                            'To-Do';
+                          handleTaskStatusUpdate(task._id, newStatus);
+                        }}
                       />
                       <Chip
                         label={task.priority}

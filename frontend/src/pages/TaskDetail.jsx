@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Container,
@@ -28,7 +28,6 @@ import {
   TextareaAutosize,
 } from '@mui/material'
 import {
-  MoreVert as MoreVertIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   Person as PersonIcon,
@@ -50,7 +49,6 @@ const TaskDetail = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [openDialog, setOpenDialog] = useState(false)
-  const [anchorEl, setAnchorEl] = useState(null)
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -62,12 +60,7 @@ const TaskDetail = () => {
   const [newComment, setNewComment] = useState('')
   const [comments, setComments] = useState([])
 
-  useEffect(() => {
-    fetchTaskDetails()
-    fetchProjectDetails()
-  }, [taskId, projectId])
-
-  const fetchTaskDetails = async () => {
+  const fetchTaskDetails = useCallback(async () => {
     try {
       const response = await axios.get(`/api/tasks/${taskId}`)
       setTask(response.data)
@@ -78,16 +71,21 @@ const TaskDetail = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [taskId])
 
-  const fetchProjectDetails = async () => {
+  const fetchProjectDetails = useCallback(async () => {
     try {
       const response = await axios.get(`/api/projects/${projectId}`)
       setProject(response.data)
     } catch (err) {
       console.error('Failed to fetch project details:', err)
     }
-  }
+  }, [projectId])
+
+  useEffect(() => {
+    fetchTaskDetails()
+    fetchProjectDetails()
+  }, [fetchTaskDetails, fetchProjectDetails])
 
   const handleOpenDialog = () => {
     setFormData({
@@ -103,14 +101,6 @@ const TaskDetail = () => {
 
   const handleCloseDialog = () => {
     setOpenDialog(false)
-  }
-
-  const handleMenuOpen = (event) => {
-    setAnchorEl(event.currentTarget)
-  }
-
-  const handleMenuClose = () => {
-    setAnchorEl(null)
   }
 
   const handleInputChange = (e) => {
@@ -145,7 +135,7 @@ const TaskDetail = () => {
 
   const handleStatusChange = async (newStatus) => {
     try {
-      await axios.patch(`/api/tasks/${taskId}`, { status: newStatus })
+      await axios.patch(`/api/tasks/${taskId}/status`, { status: newStatus })
       fetchTaskDetails()
     } catch (err) {
       setError('Failed to update task status')
@@ -235,23 +225,22 @@ const TaskDetail = () => {
             </Typography>
           </Box>
           <Box>
-            <IconButton onClick={handleMenuOpen}>
-              <MoreVertIcon />
-            </IconButton>
-            <Menu
-              anchorEl={anchorEl}
-              open={Boolean(anchorEl)}
-              onClose={handleMenuClose}
+            <Button
+              variant="outlined"
+              startIcon={<EditIcon />}
+              onClick={handleOpenDialog}
+              sx={{ mr: 1 }}
             >
-              <MenuItem onClick={handleOpenDialog}>
-                <EditIcon fontSize="small" sx={{ mr: 1 }} />
-                Edit Task
-              </MenuItem>
-              <MenuItem onClick={handleDelete}>
-                <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
-                Delete Task
-              </MenuItem>
-            </Menu>
+              Edit
+            </Button>
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<DeleteIcon />}
+              onClick={handleDelete}
+            >
+              Delete
+            </Button>
           </Box>
         </Box>
 

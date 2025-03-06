@@ -30,19 +30,12 @@ const Layout = () => {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [anchorEl, setAnchorEl] = useState(null);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
-  };
+  }
 
-  const handleMenuOpen = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
 
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-  };
 
   const handleLogout = () => {
     logout();
@@ -103,31 +96,6 @@ const Layout = () => {
             {menuItems.find((item) => item.path === window.location.pathname)
               ?.text || "Task Manager"}
           </Typography>
-          <IconButton onClick={handleMenuOpen} color="inherit">
-            <MenuIcon />
-          </IconButton>
-          <Menu
-            anchorEl={anchorEl}
-            open={Boolean(anchorEl)}
-            onClose={handleMenuClose}
-          >
-            <MenuItem
-              onClick={() => {
-                handleMenuClose();
-                navigate("/profile");
-              }}
-            >
-              Profile
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                handleMenuClose();
-                handleLogout();
-              }}
-            >
-              Logout
-            </MenuItem>
-          </Menu>
         </Toolbar>
       </AppBar>
       <Box
