@@ -307,6 +307,18 @@ const TaskEditDialog = ({ open, onClose, task, projectId, onTaskUpdated }) => {
     }
   };
 
+  // Add a dedicated handler for assignee changes
+  const handleAssigneeChange = (event) => {
+    const value = event.target.value;
+    console.log('Assignee selected:', value);
+    
+    // Update the form data with the new assignee
+    setFormData(prev => ({
+      ...prev,
+      assignee: value
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -568,37 +580,43 @@ const TaskEditDialog = ({ open, onClose, task, projectId, onTaskUpdated }) => {
             <Divider sx={{ mb: 2 }} />
             
             <FormControl fullWidth margin="dense" sx={{ mb: 2 }}>
-              <InputLabel>Assignee</InputLabel>
+              <InputLabel id="assignee-label">Assignee</InputLabel>
               <Select
+                labelId="assignee-label"
+                id="assignee-select"
                 name="assignee"
                 value={formData.assignee || ''}
-                onChange={handleInputChange}
+                onChange={handleAssigneeChange}
                 label="Assignee"
-                required
                 sx={{ borderRadius: 1 }}
                 MenuProps={{
                   PaperProps: {
-                    sx: { borderRadius: 1, mt: 0.5, maxHeight: 300 }
+                    sx: { maxHeight: 300 }
                   }
                 }}
                 renderValue={(selected) => {
-                  console.log('Selected assignee ID:', selected);
-                  console.log('Available project members:', projectMembers);
-                  // Find the member with the selected user ID
+                  if (!selected) return <em>Unassigned</em>;
+                  
                   const member = projectMembers.find(m => m.user?._id === selected);
+                  if (!member) return <em>Unassigned</em>;
+                  
                   return (
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                       <Avatar sx={{ width: 24, height: 24, mr: 1, bgcolor: 'primary.main', fontSize: '0.8rem' }}>
-                        {member?.user?.name?.charAt(0) || <PersonIcon fontSize="small" />}
+                        {member.user?.name?.charAt(0) || <PersonIcon fontSize="small" />}
                       </Avatar>
-                      <Typography>{member?.user?.name || 'Select Team Member'}</Typography>
+                      <Typography>{member.user?.name || 'Unknown User'}</Typography>
                     </Box>
                   );
                 }}
               >
-                {/* Always include an empty option */}
                 <MenuItem value="">
-                  <em>Unassigned</em>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Avatar sx={{ width: 24, height: 24, mr: 1, bgcolor: 'grey.400', fontSize: '0.8rem' }}>
+                      <PersonIcon fontSize="small" />
+                    </Avatar>
+                    <em>Unassigned</em>
+                  </Box>
                 </MenuItem>
                 
                 {loadingMembers ? (
@@ -606,65 +624,22 @@ const TaskEditDialog = ({ open, onClose, task, projectId, onTaskUpdated }) => {
                     <CircularProgress size={20} sx={{ mr: 1 }} />
                     Loading team members...
                   </MenuItem>
-                ) : projectMembers.length === 0 ? (
-                  <MenuItem disabled>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 1 }}>
-                      <Typography variant="body2" color="error">No team members available</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        Add members to the project first
-                      </Typography>
-                    </Box>
-                  </MenuItem>
                 ) : (
-                  <>
-                    {/* Group by role */}
-                    {projectMembers.some(m => m.role === 'Owner') && (
-                      <MenuItem disabled sx={{ opacity: 0.7, fontWeight: 'bold', bgcolor: 'background.paper' }}>
-                        Project Owner
+                  projectMembers.map((member) => (
+                    member.user && member.user._id ? (
+                      <MenuItem key={member.user._id} value={member.user._id}>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <Avatar sx={{ width: 24, height: 24, mr: 1, bgcolor: 'primary.main', fontSize: '0.8rem' }}>
+                            {member.user?.name?.charAt(0) || '?'}
+                          </Avatar>
+                          <Typography>
+                            {member.user?.name || member.user?.email || 'Unknown User'}
+                            {member.role ? ` (${member.role})` : ''}
+                          </Typography>
+                        </Box>
                       </MenuItem>
-                    )}
-                    
-                    {/* Show owners */}
-                    {projectMembers
-                      .filter(member => member.role === 'Owner')
-                      .map(member => {
-                        if (!member.user || !member.user._id) return null;
-                        return (
-                          <MenuItem key={member.user._id} value={member.user._id}>
-                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                              <Avatar sx={{ width: 24, height: 24, mr: 1, bgcolor: 'primary.main', fontSize: '0.8rem' }}>
-                                {member.user?.name?.charAt(0) || '?'}
-                              </Avatar>
-                              <Typography>{member.user?.name || member.user?.email || 'Unknown User'}</Typography>
-                            </Box>
-                          </MenuItem>
-                        );
-                      }).filter(Boolean)}
-                    
-                    {/* Team Members header */}
-                    {projectMembers.some(m => m.role !== 'Owner') && (
-                      <MenuItem disabled sx={{ opacity: 0.7, fontWeight: 'bold', bgcolor: 'background.paper' }}>
-                        Team Members
-                      </MenuItem>
-                    )}
-                    
-                    {/* Show team members */}
-                    {projectMembers
-                      .filter(member => member.role !== 'Owner')
-                      .map(member => {
-                        if (!member.user || !member.user._id) return null;
-                        return (
-                          <MenuItem key={member.user._id} value={member.user._id}>
-                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                              <Avatar sx={{ width: 24, height: 24, mr: 1, bgcolor: 'primary.main', fontSize: '0.8rem' }}>
-                                {member.user?.name?.charAt(0) || '?'}
-                              </Avatar>
-                              <Typography>{member.user?.name || member.user?.email || 'Unknown User'}</Typography>
-                            </Box>
-                          </MenuItem>
-                        );
-                      }).filter(Boolean)}
-                  </>
+                    ) : null
+                  ))
                 )}
               </Select>
             </FormControl>
