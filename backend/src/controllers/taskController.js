@@ -1,11 +1,24 @@
 const Task = require("../models/Task");
 const Project = require("../models/Project");
-const fs = require("fs");
-const path = require("path");
+const mongoose = require("mongoose");
+const { validationResult } = require("express-validator");
+const Grid = require("gridfs-stream");
+
+// Initialize GridFS
+let gfs;
+mongoose.connection.once("open", () => {
+  gfs = Grid(mongoose.connection.db, mongoose.mongo);
+  gfs.collection("uploads");
+});
 
 // Create new task
 exports.createTask = async (req, res) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
     const {
       title,
       description,
@@ -43,9 +56,17 @@ exports.createTask = async (req, res) => {
     project.tasks.push(task._id);
     await project.save();
 
-    res.status(201).json(task);
+    const populatedTask = await Task.findById(task._id)
+      .populate("assignee", "name email")
+      .populate("reporter", "name email")
+      .populate("project", "name");
+
+    res.status(201).json(populatedTask);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error("Error creating task:", error);
+    res
+      .status(500)
+      .json({ message: "Error creating task", error: error.message });
   }
 };
 
@@ -68,21 +89,30 @@ exports.getProjectTasks = async (req, res) => {
 
     res.json(tasks);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error("Error fetching project tasks:", error);
+    res
+      .status(500)
+      .json({ message: "Error fetching tasks", error: error.message });
   }
 };
 
-// Get tasks assigned to user
+// Get tasks for the current user
 exports.getUserTasks = async (req, res) => {
   try {
-    const tasks = await Task.find({ assignee: req.user._id })
-      .populate("project", "name")
+    const tasks = await Task.find({
+      $or: [{ assignee: req.user._id }, { reporter: req.user._id }],
+    })
+      .populate("assignee", "name email")
       .populate("reporter", "name email")
-      .sort({ dueDate: 1 });
+      .populate("project", "name")
+      .sort({ createdAt: -1 });
 
     res.json(tasks);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error("Error fetching user tasks:", error);
+    res
+      .status(500)
+      .json({ message: "Error fetching tasks", error: error.message });
   }
 };
 
@@ -236,102 +266,147 @@ exports.addComment = async (req, res) => {
 // Add attachment to task
 exports.addAttachment = async (req, res) => {
   try {
-    // Log the request details
-    console.log("File upload request received:", {
-      taskId: req.params.taskId,
-      file: req.file
-        ? {
-            originalname: req.file.originalname,
-            mimetype: req.file.mimetype,
-            size: req.file.size,
-            path: req.file.path,
-          }
-        : "No file",
-      userId: req.user._id,
-    });
+    const taskId = req.params.taskId;
+    const task = await Task.findById(taskId);
 
-    // Validate request
+    if (!task) {
+      return res.status(404).json({ message: "Task not found" });
+    }
+
+    // Check if user has permission to add attachments
+    if (
+      !task.assignee.equals(req.user._id) &&
+      !task.reporter.equals(req.user._id)
+    ) {
+      return res.status(403).json({ message: "Permission denied" });
+    }
+
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
 
-    // Find and validate task
-    const task = await Task.findById(req.params.taskId);
-    if (!task) {
-      // Clean up uploaded file if task not found
-      if (req.file && req.file.path) {
-        fs.unlink(req.file.path, (err) => {
-          if (err) console.error("Error deleting file:", err);
-        });
-      }
-      return res.status(404).json({ message: "Task not found" });
-    }
-
-    // Check project access
-    const project = await Project.findById(task.project);
-    if (!project) {
-      // Clean up uploaded file if project not found
-      if (req.file && req.file.path) {
-        fs.unlink(req.file.path, (err) => {
-          if (err) console.error("Error deleting file:", err);
-        });
-      }
-      return res.status(404).json({ message: "Project not found" });
-    }
-
-    if (!project.isMember(req.user._id)) {
-      // Clean up uploaded file if access denied
-      if (req.file && req.file.path) {
-        fs.unlink(req.file.path, (err) => {
-          if (err) console.error("Error deleting file:", err);
-        });
-      }
-      return res.status(403).json({ message: "Access denied" });
-    }
-
-    // Create attachment object
     const attachment = {
-      filename: req.file.originalname,
-      path: path.basename(req.file.path), // Only store the filename
-      url: path.basename(req.file.path), // Store just the filename without any slashes
+      filename: req.file.filename,
+      originalname: req.file.originalname,
+      fileId: req.file.id,
       mimetype: req.file.mimetype,
       size: req.file.size,
       uploadedBy: req.user._id,
       uploadedAt: new Date(),
     };
 
-    // Add attachment to task
     task.attachments.push(attachment);
     await task.save();
 
-    console.log("Attachment saved successfully:", {
-      taskId: task._id,
-      filename: attachment.filename,
-      path: attachment.path,
-      url: attachment.url,
-    });
-
-    // Return updated task with populated fields
-    const updatedTask = await Task.findById(task._id)
-      .populate("assignee", "name email")
-      .populate("reporter", "name email")
-      .populate("attachments.uploadedBy", "name email");
-
-    res.json(updatedTask);
+    res.status(201).json(attachment);
   } catch (error) {
-    console.error("Error in addAttachment:", error);
+    console.error("Error adding attachment:", error);
+    res
+      .status(500)
+      .json({ message: "Error adding attachment", error: error.message });
+  }
+};
 
-    // Clean up uploaded file on error
-    if (req.file && req.file.path) {
-      fs.unlink(req.file.path, (err) => {
-        if (err) console.error("Error deleting file:", err);
-      });
+// Get all attachments for a task
+exports.getAttachments = async (req, res) => {
+  try {
+    const taskId = req.params.taskId;
+    const task = await Task.findById(taskId).populate(
+      "attachments.uploadedBy",
+      "name email"
+    );
+
+    if (!task) {
+      return res.status(404).json({ message: "Task not found" });
     }
 
-    res.status(500).json({
-      message: "Failed to upload file",
-      error: error.message,
-    });
+    res.json(task.attachments);
+  } catch (error) {
+    console.error("Error getting attachments:", error);
+    res
+      .status(500)
+      .json({ message: "Error getting attachments", error: error.message });
+  }
+};
+
+// Download an attachment
+exports.downloadAttachment = async (req, res) => {
+  try {
+    const taskId = req.params.taskId;
+    const attachmentId = req.params.attachmentId;
+
+    const task = await Task.findById(taskId);
+    if (!task) {
+      return res.status(404).json({ message: "Task not found" });
+    }
+
+    const attachment = task.attachments.id(attachmentId);
+    if (!attachment) {
+      return res.status(404).json({ message: "Attachment not found" });
+    }
+
+    // Find the file in GridFS
+    const file = await gfs.files.findOne({ _id: attachment.fileId });
+    if (!file) {
+      return res.status(404).json({ message: "File not found" });
+    }
+
+    // Set headers
+    res.set("Content-Type", file.contentType);
+    res.set(
+      "Content-Disposition",
+      `attachment; filename="${encodeURIComponent(attachment.originalname)}"`
+    );
+
+    // Stream the file
+    const readstream = gfs.createReadStream(file._id);
+    readstream.pipe(res);
+  } catch (error) {
+    console.error("Error downloading attachment:", error);
+    res
+      .status(500)
+      .json({ message: "Error downloading attachment", error: error.message });
+  }
+};
+
+// Delete an attachment
+exports.deleteAttachment = async (req, res) => {
+  try {
+    const taskId = req.params.taskId;
+    const attachmentId = req.params.attachmentId;
+
+    const task = await Task.findById(taskId);
+    if (!task) {
+      return res.status(404).json({ message: "Task not found" });
+    }
+
+    const attachment = task.attachments.id(attachmentId);
+    if (!attachment) {
+      return res.status(404).json({ message: "Attachment not found" });
+    }
+
+    // Check if user has permission to delete attachment
+    if (
+      !task.assignee.equals(req.user._id) &&
+      !task.reporter.equals(req.user._id) &&
+      !attachment.uploadedBy.equals(req.user._id)
+    ) {
+      return res.status(403).json({ message: "Permission denied" });
+    }
+
+    // Remove file from GridFS
+    await gfs.remove({ _id: attachment.fileId, root: "uploads" });
+
+    // Remove attachment from task
+    task.attachments.pull(attachmentId);
+    await task.save();
+
+    res.json({ message: "Attachment deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting attachment:", error);
+    res
+      .status(500)
+      .json({ message: "Error deleting attachment", error: error.message });
   }
 };
 

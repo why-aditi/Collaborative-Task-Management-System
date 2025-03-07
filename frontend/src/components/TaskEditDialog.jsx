@@ -19,6 +19,11 @@ import {
   Chip,
   Stack,
   Avatar,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  ListItemSecondaryAction,
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -29,6 +34,9 @@ import {
   CalendarToday as CalendarIcon,
   Add as AddIcon,
   Lock as LockIcon,
+  AttachFile as AttachFileIcon,
+  Delete as DeleteIcon,
+  Description as FileIcon,
 } from '@mui/icons-material';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -39,10 +47,13 @@ const TaskEditDialog = ({ open, onClose, task, projectId, onTaskUpdated }) => {
     title: '',
     description: '',
     assignee: '',
-    dueDate: '',
+    dueDate: new Date().toISOString().split('T')[0],
     priority: 'Medium',
     status: 'To-Do',
   });
+  const [files, setFiles] = useState([]);
+  const [uploadProgress, setUploadProgress] = useState({});
+  const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -191,12 +202,109 @@ const TaskEditDialog = ({ open, onClose, task, projectId, onTaskUpdated }) => {
     }
   }, [task, open, user?._id]);
 
+  // Load existing attachments when editing a task
+  useEffect(() => {
+    if (open && task && task.attachments) {
+      setAttachments(task.attachments);
+    } else {
+      setAttachments([]);
+    }
+  }, [open, task]);
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value,
     }));
+  };
+
+  const uploadFile = async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await axios.post(
+        `/api/tasks/${task._id}/attachments`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          onUploadProgress: (progressEvent) => {
+            const percentCompleted = Math.round(
+              (progressEvent.loaded * 100) / progressEvent.total
+            );
+            setUploadProgress(prev => ({
+              ...prev,
+              [file.name]: percentCompleted
+            }));
+          }
+        }
+      );
+      
+      // Update attachments list with the new file
+      setAttachments(prev => [...prev, response.data]);
+      
+      // Remove file from pending uploads
+      setFiles(prev => prev.filter(f => f.name !== file.name));
+      
+      // Clear progress for this file
+      setUploadProgress(prev => {
+        const newProgress = { ...prev };
+        delete newProgress[file.name];
+        return newProgress;
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error(`Error uploading file ${file.name}:`, error);
+      setError(`Failed to upload ${file.name}: ${error.response?.data?.message || error.message}`);
+      
+      // Mark file as failed
+      setUploadProgress(prev => ({
+        ...prev,
+        [file.name]: 'failed'
+      }));
+      
+      throw error;
+    }
+  };
+
+  const handleFileChange = (event) => {
+    const newFiles = Array.from(event.target.files);
+    
+    // Filter out files that exceed size limit (10MB)
+    const validFiles = newFiles.filter(file => {
+      if (file.size > 10 * 1024 * 1024) {
+        setError(`File ${file.name} is too large. Maximum size is 10MB.`);
+        return false;
+      }
+      return true;
+    });
+
+    setFiles(prevFiles => [...prevFiles, ...validFiles]);
+    
+    // Initialize progress for new files
+    const newProgress = {};
+    validFiles.forEach(file => {
+      newProgress[file.name] = 0;
+    });
+    setUploadProgress(prev => ({ ...prev, ...newProgress }));
+  };
+
+  const handleRemoveFile = (index) => {
+    setFiles(prevFiles => prevFiles.filter((_, i) => i !== index));
+  };
+
+  const handleRemoveAttachment = async (attachmentId) => {
+    try {
+      await axios.delete(`/api/tasks/${task._id}/attachments/${attachmentId}`);
+      setAttachments(prev => prev.filter(a => a._id !== attachmentId));
+    } catch (err) {
+      console.error('Error removing attachment:', err);
+      setError('Failed to remove attachment');
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -207,6 +315,22 @@ const TaskEditDialog = ({ open, onClose, task, projectId, onTaskUpdated }) => {
       setError('Permission denied: You can only edit your own tasks');
       return;
     }
+
+    // Validate required fields
+    if (!formData.title) {
+      setError('Title is required');
+      return;
+    }
+
+    if (!formData.assignee) {
+      setError('Assignee is required');
+      return;
+    }
+
+    if (!formData.dueDate) {
+      setError('Due date is required');
+      return;
+    }
     
     setLoading(true);
     setError('');
@@ -215,29 +339,54 @@ const TaskEditDialog = ({ open, onClose, task, projectId, onTaskUpdated }) => {
     try {
       let response;
       
-      // Prepare the task data
-      const taskData = {
-        ...formData,
-        projectId: projectId,
-      };
-      
-      console.log('Task data to submit:', taskData);
-      
       if (isNewTask) {
-        // Create new task
-        console.log('Creating new task with data:', taskData);
+        // Create task first
+        const taskData = {
+          ...formData,
+          projectId: projectId,
+        };
         
         response = await axios.post('/api/tasks', taskData);
-        setSuccess(true);
-        onTaskUpdated(response.data);
-      } else {
-        // Update existing task - use the same approach as creating
-        console.log('Updating task with ID:', task._id, 'Data:', taskData);
         
-        response = await axios.patch(`/api/tasks/${task._id}`, taskData);
-        setSuccess(true);
-        onTaskUpdated(response.data);
+        // Upload files if any
+        if (files.length > 0) {
+          for (const file of files) {
+            try {
+              await uploadFile(file);
+            } catch (error) {
+              // Continue with other files even if one fails
+              console.error(`Failed to upload ${file.name}:`, error);
+            }
+          }
+        }
+      } else {
+        // Update task
+        const allowedUpdates = {
+          title: formData.title,
+          description: formData.description,
+          priority: formData.priority,
+          dueDate: formData.dueDate,
+          assignee: formData.assignee,
+          status: formData.status,
+        };
+        
+        response = await axios.patch(`/api/tasks/${task._id}`, allowedUpdates);
+        
+        // Upload files if any
+        if (files.length > 0) {
+          for (const file of files) {
+            try {
+              await uploadFile(file);
+            } catch (error) {
+              // Continue with other files even if one fails
+              console.error(`Failed to upload ${file.name}:`, error);
+            }
+          }
+        }
       }
+
+      setSuccess(true);
+      onTaskUpdated(response.data);
       
       // Close dialog after a short delay to show success message
       setTimeout(() => {
@@ -245,8 +394,10 @@ const TaskEditDialog = ({ open, onClose, task, projectId, onTaskUpdated }) => {
       }, 1000);
     } catch (err) {
       console.error(`Error ${isNewTask ? 'creating' : 'updating'} task:`, err);
-      const errorMessage = err.response?.data?.message || 
-                          `Failed to ${isNewTask ? 'create' : 'update'} task. ${err.message}`;
+      const errorMessage = err.response?.data?.errors ? 
+        err.response.data.errors.map(e => e.msg).join(', ') :
+        err.response?.data?.message || 
+        `Failed to ${isNewTask ? 'create' : 'update'} task. ${err.message}`;
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -631,6 +782,109 @@ const TaskEditDialog = ({ open, onClose, task, projectId, onTaskUpdated }) => {
                 </Select>
               </FormControl>
             </Stack>
+          </Box>
+          
+          <Box sx={{ mt: 3 }}>
+            <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+              <AttachFileIcon fontSize="small" sx={{ mr: 1 }} />
+              Attachments
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            
+            {/* Existing Attachments */}
+            {attachments.length > 0 && (
+              <List dense sx={{ mb: 2 }}>
+                {attachments.map((attachment) => (
+                  <ListItem
+                    key={attachment._id}
+                    sx={{
+                      bgcolor: 'background.paper',
+                      borderRadius: 1,
+                      mb: 1,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                    }}
+                  >
+                    <ListItemIcon>
+                      <FileIcon color="primary" />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={attachment.filename}
+                      secondary={`Uploaded by ${attachment.uploadedBy?.name || 'Unknown'}`}
+                    />
+                    <ListItemSecondaryAction>
+                      <IconButton
+                        edge="end"
+                        aria-label="delete"
+                        onClick={() => handleRemoveAttachment(attachment._id)}
+                        size="small"
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </ListItemSecondaryAction>
+                  </ListItem>
+                ))}
+              </List>
+            )}
+            
+            {/* New File Uploads */}
+            {files.length > 0 && (
+              <List dense sx={{ mb: 2 }}>
+                {files.map((file, index) => (
+                  <ListItem
+                    key={index}
+                    sx={{
+                      bgcolor: 'background.paper',
+                      borderRadius: 1,
+                      mb: 1,
+                      border: '1px solid',
+                      borderColor: uploadProgress[file.name] === 'failed' ? 'error.main' : 'divider',
+                    }}
+                  >
+                    <ListItemIcon>
+                      <FileIcon color={uploadProgress[file.name] === 'failed' ? 'error' : 'primary'} />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={file.name}
+                      secondary={
+                        uploadProgress[file.name] === 'failed' 
+                          ? 'Upload failed' 
+                          : uploadProgress[file.name] === 100
+                          ? 'Upload complete'
+                          : `${uploadProgress[file.name] || 0}% uploaded`
+                      }
+                    />
+                    <ListItemSecondaryAction>
+                      {uploadProgress[file.name] !== 100 && (
+                        <IconButton
+                          edge="end"
+                          aria-label="delete"
+                          onClick={() => handleRemoveFile(index)}
+                          size="small"
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      )}
+                    </ListItemSecondaryAction>
+                  </ListItem>
+                ))}
+              </List>
+            )}
+            
+            <Button
+              variant="outlined"
+              component="label"
+              startIcon={<AttachFileIcon />}
+              sx={{ borderRadius: 1 }}
+            >
+              Add Attachments
+              <input
+                type="file"
+                hidden
+                multiple
+                onChange={handleFileChange}
+              />
+            </Button>
           </Box>
         </DialogContent>
         

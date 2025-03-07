@@ -28,6 +28,38 @@ const commentSchema = new mongoose.Schema(
   }
 );
 
+const attachmentSchema = new mongoose.Schema({
+  filename: {
+    type: String,
+    required: true,
+  },
+  originalname: {
+    type: String,
+    required: true,
+  },
+  fileId: {
+    type: mongoose.Schema.Types.ObjectId,
+    required: true,
+  },
+  mimetype: {
+    type: String,
+    required: true,
+  },
+  size: {
+    type: Number,
+    required: true,
+  },
+  uploadedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+  },
+  uploadedAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
 const taskSchema = new mongoose.Schema(
   {
     title: {
@@ -85,39 +117,7 @@ const taskSchema = new mongoose.Schema(
         },
       },
     ],
-    attachments: [
-      {
-        filename: {
-          type: String,
-          required: true,
-        },
-        path: {
-          type: String,
-          required: true,
-        },
-        url: {
-          type: String,
-          required: true,
-        },
-        mimetype: {
-          type: String,
-          required: true,
-        },
-        size: {
-          type: Number,
-          required: true,
-        },
-        uploadedBy: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
-          required: true,
-        },
-        uploadedAt: {
-          type: Date,
-          default: Date.now,
-        },
-      },
-    ],
+    attachments: [attachmentSchema],
     tags: [
       {
         type: String,
@@ -131,6 +131,14 @@ const taskSchema = new mongoose.Schema(
     actualHours: {
       type: Number,
       min: 0,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now,
     },
   },
   {
@@ -154,6 +162,12 @@ taskSchema.methods.getCompletionPercentage = function () {
   if (this.status === "In Progress") return 50;
   return 0;
 };
+
+// Update the updatedAt timestamp before saving
+taskSchema.pre("save", function (next) {
+  this.updatedAt = new Date();
+  next();
+});
 
 const Task = mongoose.model("Task", taskSchema);
 
