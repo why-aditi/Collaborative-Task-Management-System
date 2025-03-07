@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Button,
   Dialog,
@@ -27,13 +27,7 @@ const ProjectSummaryReport = ({ projectId, open, onClose }) => {
   const [error, setError] = useState('');
   const [reportData, setReportData] = useState(null);
 
-  useEffect(() => {
-    if (open) {
-      fetchReportData();
-    }
-  }, [open, projectId]);
-
-  const fetchReportData = async () => {
+  const fetchReportData = useCallback(async () => {
     try {
       setLoading(true);
       const [projectResponse, tasksResponse, statsResponse] = await Promise.all([
@@ -53,7 +47,11 @@ const ProjectSummaryReport = ({ projectId, open, onClose }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId]);
+
+  useEffect(() => {
+    fetchReportData();
+  }, [fetchReportData]);
 
   const generatePDF = async () => {
     try {

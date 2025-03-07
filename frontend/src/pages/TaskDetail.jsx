@@ -40,6 +40,7 @@ import {
 } from '@mui/icons-material'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
+import TaskBoard from '../components/TaskBoard'
 
 const TaskDetail = () => {
   const { projectId, taskId } = useParams()
@@ -147,15 +148,15 @@ const TaskDetail = () => {
     }
   }
 
-  const handleStatusChange = async (newStatus) => {
+  const handleStatusChange = async (taskId, newStatus) => {
     try {
-      await axios.patch(`/api/tasks/${taskId}/status`, { status: newStatus })
-      fetchTaskDetails()
+      await axios.patch(`/api/tasks/${taskId}/status`, { status: newStatus });
+      fetchTaskDetails();
     } catch (err) {
-      setError('Failed to update task status')
-      console.error(err)
+      setError('Failed to update task status');
+      console.error(err);
     }
-  }
+  };
 
   const handleAddComment = async (e) => {
     e.preventDefault()
@@ -384,31 +385,12 @@ const TaskDetail = () => {
 
         <Box mb={3}>
           <Typography variant="h6" gutterBottom>
-            Actions
+            Task Status
           </Typography>
-          <Box display="flex" gap={2}>
-            <Button
-              variant="outlined"
-              onClick={() => handleStatusChange('To-Do')}
-              disabled={task.status === 'To-Do'}
-            >
-              To-Do
-            </Button>
-            <Button
-              variant="outlined"
-              onClick={() => handleStatusChange('In Progress')}
-              disabled={task.status === 'In Progress'}
-            >
-              In Progress
-            </Button>
-            <Button
-              variant="outlined"
-              onClick={() => handleStatusChange('Completed')}
-              disabled={task.status === 'Completed'}
-            >
-              Completed
-            </Button>
-          </Box>
+          <TaskBoard
+            tasks={[task]}
+            onStatusChange={(_, newStatus) => handleStatusChange(taskId, newStatus)}
+          />
         </Box>
 
         <Divider sx={{ my: 3 }} />
