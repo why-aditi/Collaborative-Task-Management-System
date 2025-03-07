@@ -40,6 +40,7 @@ import { useAuth } from '../context/AuthContext'
 import ProjectMembers from '../components/ProjectMembers'
 import TaskBoard from '../components/TaskBoard'
 import ProjectSummaryReport from '../components/ProjectSummaryReport'
+import ProjectEditDialog from '../components/ProjectEditDialog'
 
 const ProjectDetail = () => {
   const { projectId } = useParams()
@@ -48,14 +49,8 @@ const ProjectDetail = () => {
   const [project, setProject] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [openDialog, setOpenDialog] = useState(false)
+  const [openEditDialog, setOpenEditDialog] = useState(false)
   const [openReportDialog, setOpenReportDialog] = useState(false)
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    startDate: '',
-    endDate: '',
-  })
 
   const fetchProject = useCallback(async () => {
     try {
@@ -85,38 +80,17 @@ const ProjectDetail = () => {
     fetchProject();
   }, [fetchProject]);
 
-  const handleOpenDialog = () => {
-    setFormData({
-      name: project.name,
-      description: project.description,
-      startDate: project.startDate,
-      endDate: project.endDate,
-    })
-    setOpenDialog(true)
+  const handleOpenEditDialog = () => {
+    setOpenEditDialog(true)
   }
 
-  const handleCloseDialog = () => {
-    setOpenDialog(false)
+  const handleCloseEditDialog = () => {
+    setOpenEditDialog(false)
   }
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
-  }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    try {
-      await axios.put(`/api/projects/${projectId}`, formData)
-      fetchProject()
-      handleCloseDialog()
-    } catch (err) {
-      setError('Failed to update project')
-      console.error(err)
-    }
+  const handleProjectUpdated = (updatedProject) => {
+    setProject(updatedProject)
+    fetchProject()
   }
 
   const handleDelete = async () => {
@@ -195,7 +169,8 @@ const ProjectDetail = () => {
             <Button
               variant="outlined"
               startIcon={<EditIcon />}
-              onClick={handleOpenDialog}
+              onClick={handleOpenEditDialog}
+              sx={{ mr: 1 }}
             >
               Edit
             </Button>
@@ -261,62 +236,13 @@ const ProjectDetail = () => {
         </Grid>
       </Grid>
 
-      {/* Project Form Dialog */}
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>Edit Project</DialogTitle>
-        <form onSubmit={handleSubmit}>
-          <DialogContent>
-            <TextField
-              autoFocus
-              margin="dense"
-              name="name"
-              label="Project Name"
-              type="text"
-              fullWidth
-              required
-              value={formData.name}
-              onChange={handleInputChange}
-            />
-            <TextField
-              margin="dense"
-              name="description"
-              label="Description"
-              type="text"
-              fullWidth
-              multiline
-              rows={3}
-              value={formData.description}
-              onChange={handleInputChange}
-            />
-            <TextField
-              margin="dense"
-              name="startDate"
-              label="Start Date"
-              type="date"
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-              value={formData.startDate}
-              onChange={handleInputChange}
-            />
-            <TextField
-              margin="dense"
-              name="endDate"
-              label="End Date"
-              type="date"
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-              value={formData.endDate}
-              onChange={handleInputChange}
-            />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={handleCloseDialog}>Cancel</Button>
-            <Button type="submit" variant="contained">
-              Update
-            </Button>
-          </DialogActions>
-        </form>
-      </Dialog>
+      {/* Project Edit Dialog */}
+      <ProjectEditDialog
+        open={openEditDialog}
+        onClose={handleCloseEditDialog}
+        project={project}
+        onProjectUpdated={handleProjectUpdated}
+      />
 
       {/* Project Summary Report Dialog */}
       <ProjectSummaryReport

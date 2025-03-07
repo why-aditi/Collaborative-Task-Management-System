@@ -10,15 +10,6 @@ import {
   IconButton,
   Menu,
   MenuItem,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem as SelectMenuItem,
   Divider,
   List,
   ListItem,
@@ -26,6 +17,7 @@ import {
   ListItemAvatar,
   Avatar,
   TextareaAutosize,
+  CircularProgress,
 } from '@mui/material'
 import {
   Edit as EditIcon,
@@ -41,6 +33,7 @@ import {
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 import TaskBoard from '../components/TaskBoard'
+import TaskEditDialog from '../components/TaskEditDialog'
 
 const TaskDetail = () => {
   const { projectId, taskId } = useParams()
@@ -50,15 +43,7 @@ const TaskDetail = () => {
   const [project, setProject] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [openDialog, setOpenDialog] = useState(false)
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    assignee: '',
-    dueDate: '',
-    priority: 'Medium',
-    status: '',
-  })
+  const [openEditDialog, setOpenEditDialog] = useState(false)
   const [newComment, setNewComment] = useState('')
   const [comments, setComments] = useState([])
   const fileInputRef = React.useRef(null);
@@ -91,41 +76,33 @@ const TaskDetail = () => {
     fetchProjectDetails()
   }, [fetchTaskDetails, fetchProjectDetails])
 
-  const handleOpenDialog = () => {
-    setFormData({
-      title: task.title,
-      description: task.description,
-      assignee: task.assignee._id,
-      dueDate: new Date(task.dueDate).toISOString().split('T')[0],
-      priority: task.priority,
-      status: task.status,
-    })
-    setOpenDialog(true)
-  }
+  const handleOpenEditDialog = () => {
+    console.log('Opening edit dialog for task:', task._id);
+    setOpenEditDialog(true);
+  };
 
-  const handleCloseDialog = () => {
-    setOpenDialog(false)
-  }
+  const handleCloseEditDialog = () => {
+    console.log('Closing edit dialog');
+    setOpenEditDialog(false);
+  };
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
-  }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    try {
-      await axios.patch(`/api/tasks/${taskId}`, formData)
-      fetchTaskDetails()
-      handleCloseDialog()
-    } catch (err) {
-      setError('Failed to update task')
-      console.error(err)
+  const handleTaskUpdated = (updatedTask) => {
+    console.log('Task updated in TaskDetail:', updatedTask);
+    
+    // Update the task in the UI immediately
+    setTask(updatedTask);
+    
+    // Update comments if they exist
+    if (updatedTask.comments) {
+      setComments(updatedTask.comments);
     }
-  }
+    
+    // Close the edit dialog
+    setOpenEditDialog(false);
+    
+    // Refresh task details to ensure we have the latest data
+    fetchTaskDetails();
+  };
 
   const handleDelete = async () => {
     try {
@@ -146,15 +123,15 @@ const TaskDetail = () => {
       });
       setError(err.response?.data?.message || 'Failed to delete task');
     }
-  }
+  };
 
-  const handleStatusChange = async (taskId, newStatus) => {
+  const handleStatusChange = async (newStatus) => {
     try {
-      await axios.patch(`/api/tasks/${taskId}/status`, { status: newStatus });
-      fetchTaskDetails();
+      await axios.patch(`/api/tasks/${taskId}/status`, { status: newStatus })
+      fetchTaskDetails()
     } catch (err) {
-      setError('Failed to update task status');
-      console.error(err);
+      setError('Failed to update task status')
+      console.error(err)
     }
   };
 
@@ -173,7 +150,7 @@ const TaskDetail = () => {
       setError('Failed to add comment')
       console.error(err)
     }
-  }
+  };
 
   const handleFileSelect = async (event) => {
     try {
@@ -276,7 +253,7 @@ const TaskDetail = () => {
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
-        <Typography>Loading task details...</Typography>
+        <CircularProgress />
       </Box>
     )
   }
@@ -313,9 +290,9 @@ const TaskDetail = () => {
           </Box>
           <Box>
             <Button
-              variant="outlined"
+              variant="contained"
               startIcon={<EditIcon />}
-              onClick={handleOpenDialog}
+              onClick={handleOpenEditDialog}
               sx={{ mr: 1 }}
             >
               Edit
@@ -389,7 +366,7 @@ const TaskDetail = () => {
           </Typography>
           <TaskBoard
             tasks={[task]}
-            onStatusChange={(_, newStatus) => handleStatusChange(taskId, newStatus)}
+            onStatusChange={(_, newStatus) => handleStatusChange(newStatus)}
           />
         </Box>
 
@@ -493,89 +470,14 @@ const TaskDetail = () => {
         </Box>
       </Paper>
 
-      {/* Edit Task Dialog */}
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>Edit Task</DialogTitle>
-        <form onSubmit={handleSubmit}>
-          <DialogContent>
-            <TextField
-              autoFocus
-              margin="dense"
-              name="title"
-              label="Title"
-              type="text"
-              fullWidth
-              required
-              value={formData.title}
-              onChange={handleInputChange}
-            />
-            <TextField
-              margin="dense"
-              name="description"
-              label="Description"
-              type="text"
-              fullWidth
-              multiline
-              rows={3}
-              value={formData.description}
-              onChange={handleInputChange}
-            />
-            <TextField
-              margin="dense"
-              name="assignee"
-              label="Assignee"
-              type="text"
-              fullWidth
-              required
-              value={formData.assignee}
-              onChange={handleInputChange}
-            />
-            <TextField
-              margin="dense"
-              name="dueDate"
-              label="Due Date"
-              type="date"
-              fullWidth
-              required
-              InputLabelProps={{ shrink: true }}
-              value={formData.dueDate}
-              onChange={handleInputChange}
-            />
-            <FormControl fullWidth margin="dense">
-              <InputLabel>Priority</InputLabel>
-              <Select
-                name="priority"
-                value={formData.priority}
-                onChange={handleInputChange}
-                label="Priority"
-              >
-                <SelectMenuItem value="Low">Low</SelectMenuItem>
-                <SelectMenuItem value="Medium">Medium</SelectMenuItem>
-                <SelectMenuItem value="High">High</SelectMenuItem>
-              </Select>
-            </FormControl>
-            <FormControl fullWidth margin="dense">
-              <InputLabel>Status</InputLabel>
-              <Select
-                name="status"
-                value={formData.status}
-                onChange={handleInputChange}
-                label="Status"
-              >
-                <SelectMenuItem value="To-Do">To-Do</SelectMenuItem>
-                <SelectMenuItem value="In Progress">In Progress</SelectMenuItem>
-                <SelectMenuItem value="Completed">Completed</SelectMenuItem>
-              </Select>
-            </FormControl>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={handleCloseDialog}>Cancel</Button>
-            <Button type="submit" variant="contained">
-              Update
-            </Button>
-          </DialogActions>
-        </form>
-      </Dialog>
+      {/* Task Edit Dialog */}
+      <TaskEditDialog
+        open={openEditDialog}
+        onClose={handleCloseEditDialog}
+        task={task}
+        projectId={projectId}
+        onTaskUpdated={handleTaskUpdated}
+      />
     </Container>
   )
 }
