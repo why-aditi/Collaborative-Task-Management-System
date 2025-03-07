@@ -1,5 +1,7 @@
 const Task = require("../models/Task");
 const Project = require("../models/Project");
+const fs = require("fs");
+const path = require("path");
 
 // Create new task
 exports.createTask = async (req, res) => {
@@ -111,43 +113,95 @@ exports.getTask = async (req, res) => {
 
 // Update task
 exports.updateTask = async (req, res) => {
-  const updates = Object.keys(req.body);
-  const allowedUpdates = [
-    "title",
-    "description",
-    "status",
-    "priority",
-    "dueDate",
-    "assignee",
-    "estimatedHours",
-    "actualHours",
-  ];
-  const isValidOperation = updates.every((update) =>
-    allowedUpdates.includes(update)
-  );
-
-  if (!isValidOperation) {
-    return res.status(400).json({ message: "Invalid updates" });
-  }
-
   try {
+    console.log("Update task request:", {
+      taskId: req.params.taskId,
+      updates: req.body,
+      user: req.user._id,
+    });
+
     const task = await Task.findById(req.params.taskId);
     if (!task) {
+      console.log("Task not found:", req.params.taskId);
       return res.status(404).json({ message: "Task not found" });
     }
 
     // Check if user has access to the project
     const project = await Project.findById(task.project);
+    if (!project) {
+      console.log("Project not found for task:", task.project);
+      return res.status(404).json({ message: "Project not found" });
+    }
+
     if (!project.isMember(req.user._id)) {
+      console.log("Access denied for user:", req.user._id);
       return res.status(403).json({ message: "Access denied" });
     }
 
-    updates.forEach((update) => (task[update] = req.body[update]));
-    await task.save();
+    // Handle status update specifically
+    if (req.body.status !== undefined) {
+      console.log("Processing status update:", req.body.status);
 
-    res.json(task);
+      if (!["To-Do", "In Progress", "Completed"].includes(req.body.status)) {
+        return res.status(400).json({
+          message: "Invalid status value",
+          allowedValues: ["To-Do", "In Progress", "Completed"],
+        });
+      }
+      task.status = req.body.status;
+      console.log("Status updated to:", task.status);
+    }
+
+    // Handle other updates
+    const updates = Object.keys(req.body).filter((key) => key !== "status");
+    const allowedUpdates = [
+      "title",
+      "description",
+      "priority",
+      "dueDate",
+      "assignee",
+      "estimatedHours",
+      "actualHours",
+    ];
+
+    const invalidUpdates = updates.filter(
+      (update) => !allowedUpdates.includes(update)
+    );
+    if (invalidUpdates.length > 0) {
+      console.log("Invalid update fields:", invalidUpdates);
+      return res.status(400).json({
+        message: "Invalid update fields",
+        invalidFields: invalidUpdates,
+        allowedFields: allowedUpdates,
+      });
+    }
+
+    updates.forEach((update) => {
+      task[update] = req.body[update];
+    });
+
+    try {
+      await task.save();
+      console.log("Task updated successfully:", task._id);
+
+      // Return populated task
+      const updatedTask = await Task.findById(task._id)
+        .populate("assignee", "name email")
+        .populate("reporter", "name email")
+        .populate("project", "name");
+
+      res.json(updatedTask);
+    } catch (saveError) {
+      console.error("Error saving task:", saveError);
+      throw new Error(`Failed to save task: ${saveError.message}`);
+    }
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error("Error updating task:", error);
+    res.status(500).json({
+      message: "Failed to update task",
+      error: error.message,
+      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+    });
   }
 };
 
@@ -182,30 +236,102 @@ exports.addComment = async (req, res) => {
 // Add attachment to task
 exports.addAttachment = async (req, res) => {
   try {
-    const task = await Task.findById(req.params.taskId);
-    if (!task) {
-      return res.status(404).json({ message: "Task not found" });
-    }
+    // Log the request details
+    console.log("File upload request received:", {
+      taskId: req.params.taskId,
+      file: req.file
+        ? {
+            originalname: req.file.originalname,
+            mimetype: req.file.mimetype,
+            size: req.file.size,
+            path: req.file.path,
+          }
+        : "No file",
+      userId: req.user._id,
+    });
 
-    // Check if user has access to the project
-    const project = await Project.findById(task.project);
-    if (!project.isMember(req.user._id)) {
-      return res.status(403).json({ message: "Access denied" });
-    }
-
+    // Validate request
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
 
-    task.attachments.push({
+    // Find and validate task
+    const task = await Task.findById(req.params.taskId);
+    if (!task) {
+      // Clean up uploaded file if task not found
+      if (req.file && req.file.path) {
+        fs.unlink(req.file.path, (err) => {
+          if (err) console.error("Error deleting file:", err);
+        });
+      }
+      return res.status(404).json({ message: "Task not found" });
+    }
+
+    // Check project access
+    const project = await Project.findById(task.project);
+    if (!project) {
+      // Clean up uploaded file if project not found
+      if (req.file && req.file.path) {
+        fs.unlink(req.file.path, (err) => {
+          if (err) console.error("Error deleting file:", err);
+        });
+      }
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    if (!project.isMember(req.user._id)) {
+      // Clean up uploaded file if access denied
+      if (req.file && req.file.path) {
+        fs.unlink(req.file.path, (err) => {
+          if (err) console.error("Error deleting file:", err);
+        });
+      }
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    // Create attachment object
+    const attachment = {
       filename: req.file.originalname,
-      url: req.file.path,
+      path: path.basename(req.file.path), // Only store the filename
+      url: path.basename(req.file.path), // Store just the filename without any slashes
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      uploadedBy: req.user._id,
+      uploadedAt: new Date(),
+    };
+
+    // Add attachment to task
+    task.attachments.push(attachment);
+    await task.save();
+
+    console.log("Attachment saved successfully:", {
+      taskId: task._id,
+      filename: attachment.filename,
+      path: attachment.path,
+      url: attachment.url,
     });
 
-    await task.save();
-    res.json(task);
+    // Return updated task with populated fields
+    const updatedTask = await Task.findById(task._id)
+      .populate("assignee", "name email")
+      .populate("reporter", "name email")
+      .populate("attachments.uploadedBy", "name email");
+
+    res.json(updatedTask);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error("Error in addAttachment:", error);
+
+    // Clean up uploaded file on error
+    if (req.file && req.file.path) {
+      fs.unlink(req.file.path, (err) => {
+        if (err) console.error("Error deleting file:", err);
+      });
+    }
+
+    res.status(500).json({
+      message: "Failed to upload file",
+      error: error.message,
+    });
   }
 };
 
@@ -232,7 +358,8 @@ exports.deleteTask = async (req, res) => {
     );
     await project.save();
 
-    await task.remove();
+    // Delete the task using deleteOne
+    await Task.deleteOne({ _id: task._id });
     res.json({ message: "Task deleted successfully" });
   } catch (error) {
     res.status(400).json({ message: error.message });

@@ -68,11 +68,50 @@ const taskSchema = new mongoose.Schema(
       type: Date,
       required: [true, "Due date is required"],
     },
-    comments: [commentSchema],
+    comments: [
+      {
+        content: {
+          type: String,
+          required: true,
+        },
+        author: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
     attachments: [
       {
-        filename: String,
-        url: String,
+        filename: {
+          type: String,
+          required: true,
+        },
+        path: {
+          type: String,
+          required: true,
+        },
+        url: {
+          type: String,
+          required: true,
+        },
+        mimetype: {
+          type: String,
+          required: true,
+        },
+        size: {
+          type: Number,
+          required: true,
+        },
+        uploadedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
         uploadedAt: {
           type: Date,
           default: Date.now,
@@ -106,7 +145,7 @@ taskSchema.index({ dueDate: 1 });
 
 // Method to check if task is overdue
 taskSchema.methods.isOverdue = function () {
-  return this.status !== "Completed" && this.dueDate < new Date();
+  return this.dueDate < new Date() && this.status !== "Completed";
 };
 
 // Method to calculate completion percentage

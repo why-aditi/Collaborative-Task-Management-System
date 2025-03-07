@@ -33,10 +33,13 @@ import {
   Assignment as TaskIcon,
   Add as AddIcon,
   Person as PersonIcon,
+  Assessment as ReportIcon,
 } from '@mui/icons-material'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 import ProjectMembers from '../components/ProjectMembers'
+import TaskBoard from '../components/TaskBoard'
+import ProjectSummaryReport from '../components/ProjectSummaryReport'
 
 const ProjectDetail = () => {
   const { projectId } = useParams()
@@ -46,7 +49,7 @@ const ProjectDetail = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [openDialog, setOpenDialog] = useState(false)
-  const [anchorEl, setAnchorEl] = useState(null)
+  const [openReportDialog, setOpenReportDialog] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -96,14 +99,6 @@ const ProjectDetail = () => {
     setOpenDialog(false)
   }
 
-  const handleMenuOpen = (event) => {
-    setAnchorEl(event.currentTarget)
-  }
-
-  const handleMenuClose = () => {
-    setAnchorEl(null)
-  }
-
   const handleInputChange = (e) => {
     const { name, value } = e.target
     setFormData((prev) => ({
@@ -123,16 +118,6 @@ const ProjectDetail = () => {
       console.error(err)
     }
   }
-
-  const handleTaskStatusUpdate = async (taskId, newStatus) => {
-    try {
-      await axios.patch(`/api/tasks/${taskId}/status`, { status: newStatus });
-      fetchProject(); // Refresh project data to get updated task status
-    } catch (err) {
-      console.error('Error updating task status:', err);
-      setError('Failed to update task status');
-    }
-  };
 
   const handleDelete = async () => {
     try {
@@ -175,7 +160,7 @@ const ProjectDetail = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
       <Paper sx={{ p: 3, mb: 3 }}>
         <Box display="flex" justifyContent="space-between" alignItems="flex-start">
           <Box>
@@ -199,17 +184,35 @@ const ProjectDetail = () => {
               </Box>
             </Box>
           </Box>
-          <Box>
-            <IconButton onClick={handleMenuOpen}>
-              <MoreVertIcon />
-            </IconButton>
+          <Box display="flex" gap={1}>
+            <Button
+              variant="outlined"
+              startIcon={<ReportIcon />}
+              onClick={() => setOpenReportDialog(true)}
+            >
+              Report
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<EditIcon />}
+              onClick={handleOpenDialog}
+            >
+              Edit
+            </Button>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
               onClick={() => navigate(`/projects/${projectId}/tasks/new`)}
-              sx={{ ml: 2 }}
             >
               New Task
+            </Button>
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<DeleteIcon />}
+              onClick={handleDelete}
+            >
+              Delete
             </Button>
           </Box>
         </Box>
@@ -242,7 +245,7 @@ const ProjectDetail = () => {
         </Grid>
 
         {/* Team Members */}
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} md={8}>
           <Paper sx={{ p: 2 }}>
             <ProjectMembers
               projectId={projectId}
@@ -252,100 +255,9 @@ const ProjectDetail = () => {
           </Paper>
         </Grid>
 
-        {/* Recent Activity */}
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              Recent Activity
-            </Typography>
-            <Box sx={{ mt: 2 }}>
-              {project.tasks.slice(0, 5).map((task) => (
-                <Box key={task._id} sx={{ mb: 2 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    {new Date(task.updatedAt).toLocaleDateString()}
-                  </Typography>
-                  <Typography variant="body1">
-                    {task.title} - {task.status}
-                  </Typography>
-                </Box>
-              ))}
-            </Box>
-          </Paper>
-        </Grid>
-
-        {/* Task List */}
+        {/* Task Board */}
         <Grid item xs={12}>
-          <Paper sx={{ p: 2 }}>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="h6">Tasks</Typography>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={() => navigate(`/projects/${projectId}/tasks/new`)}
-              >
-                Add Task
-              </Button>
-            </Box>
-            <List>
-              {project.tasks.map((task) => (
-                <React.Fragment key={task._id}>
-                  <ListItem
-                    button
-                    onClick={() => navigate(`/projects/${projectId}/tasks/${task._id}`)}
-                  >
-                    <ListItemText
-                      primary={task.title}
-                      secondary={
-                        <Box component="span">
-                          <Typography component="span" variant="body2">
-                            Due: {new Date(task.dueDate).toLocaleDateString()}
-                          </Typography>
-                          {' • '}
-                          <Typography component="span" variant="body2">
-                            Assigned to: {task.assignee.name}
-                          </Typography>
-                        </Box>
-                      }
-                    />
-                    <Box>
-                      <Chip
-                        label={task.status}
-                        color={
-                          task.status === 'Completed'
-                            ? 'success'
-                            : task.status === 'In Progress'
-                            ? 'primary'
-                            : 'default'
-                        }
-                        size="small"
-                        sx={{ mr: 1 }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const newStatus = 
-                            task.status === 'To-Do' ? 'In Progress' :
-                            task.status === 'In Progress' ? 'Completed' :
-                            'To-Do';
-                          handleTaskStatusUpdate(task._id, newStatus);
-                        }}
-                      />
-                      <Chip
-                        label={task.priority}
-                        color={
-                          task.priority === 'High'
-                            ? 'error'
-                            : task.priority === 'Medium'
-                            ? 'warning'
-                            : 'success'
-                        }
-                        size="small"
-                      />
-                    </Box>
-                  </ListItem>
-                  <Divider />
-                </React.Fragment>
-              ))}
-            </List>
-          </Paper>
+          <TaskBoard projectId={projectId} />
         </Grid>
       </Grid>
 
@@ -406,25 +318,12 @@ const ProjectDetail = () => {
         </form>
       </Dialog>
 
-      {/* Project Menu */}
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleMenuClose}
-      >
-        <MenuItem onClick={handleOpenDialog}>
-          <ListItemIcon>
-            <EditIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Edit Project</ListItemText>
-        </MenuItem>
-        <MenuItem onClick={handleDelete}>
-          <ListItemIcon>
-            <DeleteIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Delete Project</ListItemText>
-        </MenuItem>
-      </Menu>
+      {/* Project Summary Report Dialog */}
+      <ProjectSummaryReport
+        projectId={projectId}
+        open={openReportDialog}
+        onClose={() => setOpenReportDialog(false)}
+      />
     </Container>
   )
 }

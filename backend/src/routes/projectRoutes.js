@@ -44,4 +44,7 @@ router.delete("/:projectId/members/:userId", projectController.removeMember);
 // Project statistics
 router.get("/:projectId/stats", projectController.getProjectStats);
 
+// Generate project report
+router.post("/:projectId/report", projectController.generateReport);
+
 module.exports = router;

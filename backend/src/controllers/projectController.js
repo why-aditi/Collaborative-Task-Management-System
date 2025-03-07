@@ -1,5 +1,8 @@
 const Project = require("../models/Project");
 const Task = require("../models/Task");
+const PDFDocument = require("pdfkit");
+const fs = require("fs");
+const path = require("path");
 
 // Create new project
 exports.createProject = async (req, res) => {
@@ -264,6 +267,125 @@ exports.getProjectStats = async (req, res) => {
 
     res.json(stats);
   } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Generate project report
+exports.generateReport = async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.projectId)
+      .populate("owner", "name email")
+      .populate("members.user", "name email")
+      .populate({
+        path: "tasks",
+        populate: { path: "assignee", select: "name email" },
+      });
+
+    if (!project) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    if (!project.isMember(req.user._id)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    // Create a new PDF document
+    const doc = new PDFDocument();
+    const filename = `project-report-${project._id}.pdf`;
+
+    // Set response headers
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+    // Pipe the PDF directly to the response
+    doc.pipe(res);
+
+    // Add content to the PDF
+    doc.fontSize(20).text("Project Report", { align: "center" }).moveDown();
+
+    // Project Details
+    doc
+      .fontSize(16)
+      .text("Project Details")
+      .moveDown()
+      .fontSize(12)
+      .text(`Name: ${project.name}`)
+      .text(`Description: ${project.description}`)
+      .text(`Status: ${project.status}`)
+      .text(`Start Date: ${new Date(project.startDate).toLocaleDateString()}`)
+      .text(`End Date: ${new Date(project.endDate).toLocaleDateString()}`)
+      .moveDown();
+
+    // Team Members
+    doc.fontSize(16).text("Team Members").moveDown().fontSize(12);
+
+    project.members.forEach((member) => {
+      doc.text(`${member.user.name} (${member.role})`);
+    });
+    doc.moveDown();
+
+    // Task Statistics
+    const stats = {
+      total: project.tasks.length,
+      completed: project.tasks.filter((task) => task.status === "Completed")
+        .length,
+      inProgress: project.tasks.filter((task) => task.status === "In Progress")
+        .length,
+      todo: project.tasks.filter((task) => task.status === "To-Do").length,
+      highPriority: project.tasks.filter((task) => task.priority === "High")
+        .length,
+      mediumPriority: project.tasks.filter((task) => task.priority === "Medium")
+        .length,
+      lowPriority: project.tasks.filter((task) => task.priority === "Low")
+        .length,
+    };
+
+    doc
+      .fontSize(16)
+      .text("Task Statistics")
+      .moveDown()
+      .fontSize(12)
+      .text(`Total Tasks: ${stats.total}`)
+      .text(`Completed: ${stats.completed}`)
+      .text(`In Progress: ${stats.inProgress}`)
+      .text(`To-Do: ${stats.todo}`)
+      .moveDown()
+      .text(`High Priority: ${stats.highPriority}`)
+      .text(`Medium Priority: ${stats.mediumPriority}`)
+      .text(`Low Priority: ${stats.lowPriority}`)
+      .moveDown();
+
+    // Task Details
+    doc.fontSize(16).text("Task Details").moveDown();
+
+    project.tasks.forEach((task) => {
+      doc
+        .fontSize(14)
+        .text(task.title)
+        .fontSize(12)
+        .text(`Status: ${task.status}`)
+        .text(`Priority: ${task.priority}`)
+        .text(`Assignee: ${task.assignee.name}`)
+        .text(`Due Date: ${new Date(task.dueDate).toLocaleDateString()}`)
+        .text(`Description: ${task.description}`)
+        .moveDown();
+    });
+
+    // Add footer with date
+    doc
+      .fontSize(10)
+      .text(
+        `Report generated on ${new Date().toLocaleString()}`,
+        0,
+        doc.page.height - 50,
+        { align: "center" }
+      );
+
+    // Finalize the PDF
+    doc.end();
+  } catch (error) {
+    console.error("Error generating report:", error);
     res.status(400).json({ message: error.message });
   }
 };

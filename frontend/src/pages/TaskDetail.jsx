@@ -36,6 +36,7 @@ import {
   Assignment as AssignmentIcon,
   Comment as CommentIcon,
   AttachFile as AttachFileIcon,
+  Download as DownloadIcon,
 } from '@mui/icons-material'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
@@ -59,6 +60,8 @@ const TaskDetail = () => {
   })
   const [newComment, setNewComment] = useState('')
   const [comments, setComments] = useState([])
+  const fileInputRef = React.useRef(null);
+  const [uploading, setUploading] = useState(false);
 
   const fetchTaskDetails = useCallback(async () => {
     try {
@@ -125,11 +128,22 @@ const TaskDetail = () => {
 
   const handleDelete = async () => {
     try {
-      await axios.delete(`/api/tasks/${taskId}`)
-      navigate(`/projects/${projectId}/tasks`)
+      console.log('Attempting to delete task:', taskId);
+      const response = await axios.delete(`/api/tasks/${taskId}`);
+      console.log('Delete response:', response.data);
+      
+      // Only navigate if the delete was successful
+      if (response.status === 200) {
+        navigate(`/projects/${projectId}`);
+      }
     } catch (err) {
-      setError('Failed to delete task')
-      console.error(err)
+      console.error('Error deleting task:', {
+        status: err.response?.status,
+        message: err.response?.data?.message || err.message,
+        taskId,
+        projectId
+      });
+      setError(err.response?.data?.message || 'Failed to delete task');
     }
   }
 
@@ -159,6 +173,78 @@ const TaskDetail = () => {
       console.error(err)
     }
   }
+
+  const handleFileSelect = async (event) => {
+    try {
+      setUploading(true);
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        `/api/tasks/${taskId}/attachments`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+
+      setTask(response.data);
+    } catch (err) {
+      console.error('File upload error:', err.response?.data || err.message);
+      setError(err.response?.data?.message || 'Failed to upload attachment');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDownload = async (attachment) => {
+    try {
+      const token = localStorage.getItem('token');
+      // Ensure we have a clean filename without any slashes
+      const filename = attachment.url.replace(/^\/+|\/+$/g, '');
+      
+      console.log('Downloading file:', filename); // Debug log
+      
+      const response = await axios.get(`/api/uploads/${filename}`, {
+        responseType: 'blob',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      // Check if we got a blob response
+      if (!response.data || !(response.data instanceof Blob)) {
+        throw new Error('Invalid response format');
+      }
+
+      const contentType = response.headers['content-type'];
+      const blob = new Blob([response.data], { type: contentType });
+      const url = window.URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', attachment.filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url); // Clean up the URL object
+    } catch (err) {
+      console.error('Download error:', {
+        error: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        headers: err.response?.headers
+      });
+      setError(err.response?.data?.message || 'Failed to download attachment');
+    }
+  };
 
   const getPriorityColor = (priority) => {
     switch (priority) {
@@ -306,27 +392,21 @@ const TaskDetail = () => {
               onClick={() => handleStatusChange('To-Do')}
               disabled={task.status === 'To-Do'}
             >
-              Move to To-Do
+              To-Do
             </Button>
             <Button
               variant="outlined"
               onClick={() => handleStatusChange('In Progress')}
               disabled={task.status === 'In Progress'}
             >
-              Move to In Progress
+              In Progress
             </Button>
             <Button
               variant="outlined"
               onClick={() => handleStatusChange('Completed')}
               disabled={task.status === 'Completed'}
             >
-              Mark as Completed
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<AttachFileIcon />}
-            >
-              Add Attachment
+              Completed
             </Button>
           </Box>
         </Box>
@@ -378,6 +458,52 @@ const TaskDetail = () => {
                       {new Date(comment.createdAt).toLocaleString()}
                     </>
                   }
+                />
+              </ListItem>
+            ))}
+          </List>
+        </Box>
+
+        <Divider sx={{ my: 3 }} />
+
+        <Box mb={3}>
+          <Typography variant="h6" gutterBottom>
+            Attachments
+          </Typography>
+          <input
+            type="file"
+            ref={fileInputRef}
+            style={{ display: 'none' }}
+            onChange={handleFileSelect}
+          />
+          <Box display="flex" gap={2} mb={2}>
+            <Button
+              variant="outlined"
+              startIcon={<AttachFileIcon />}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+            >
+              {uploading ? 'Uploading...' : 'Add Attachment'}
+            </Button>
+          </Box>
+          <List>
+            {task.attachments?.map((attachment) => (
+              <ListItem
+                key={attachment._id}
+                secondaryAction={
+                  <IconButton edge="end" onClick={() => handleDownload(attachment)}>
+                    <DownloadIcon />
+                  </IconButton>
+                }
+              >
+                <ListItemAvatar>
+                  <Avatar>
+                    <AttachFileIcon />
+                  </Avatar>
+                </ListItemAvatar>
+                <ListItemText
+                  primary={attachment.filename}
+                  secondary={new Date(attachment.createdAt).toLocaleString()}
                 />
               </ListItem>
             ))}

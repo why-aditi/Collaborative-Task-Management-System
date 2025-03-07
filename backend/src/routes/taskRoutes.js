@@ -4,18 +4,57 @@ const multer = require("multer");
 const { body } = require("express-validator");
 const taskController = require("../controllers/taskController");
 const { auth } = require("../middleware/auth");
+const path = require("path");
+const fs = require("fs");
+
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, "../../uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, "uploads/");
+    cb(null, uploadsDir);
   },
   filename: function (req, file, cb) {
-    cb(null, Date.now() + "-" + file.originalname);
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    const ext = path.extname(file.originalname);
+    const safeName = `${uniqueSuffix}${ext}`;
+    cb(null, safeName);
   },
 });
 
-const upload = multer({ storage: storage });
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB
+    files: 1,
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "text/plain",
+    ];
+
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(
+        new Error(
+          "Invalid file type. Only images, PDFs, Word documents and text files are allowed."
+        ),
+        false
+      );
+    }
+  },
+});
 
 // Validation middleware
 const validateTask = [
@@ -62,7 +101,29 @@ router.post("/:taskId/comments", validateComment, taskController.addComment);
 // Task attachments
 router.post(
   "/:taskId/attachments",
-  upload.single("file"),
+  auth,
+  (req, res, next) => {
+    upload.single("file")(req, res, (err) => {
+      if (err instanceof multer.MulterError) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+          return res.status(400).json({
+            message: "File too large",
+            details: "File size cannot exceed 5MB",
+          });
+        }
+        return res.status(400).json({
+          message: "File upload error",
+          details: err.message,
+        });
+      } else if (err) {
+        return res.status(400).json({
+          message: "File upload error",
+          details: err.message,
+        });
+      }
+      next();
+    });
+  },
   taskController.addAttachment
 );
 

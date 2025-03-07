@@ -6,6 +6,8 @@ const swaggerUi = require("swagger-ui-express");
 const swaggerJsdoc = require("swagger-jsdoc");
 const { createServer } = require("http");
 const { Server } = require("socket.io");
+const path = require("path");
+const fs = require("fs");
 
 // Load environment variables
 dotenv.config();
@@ -24,6 +26,22 @@ const io = new Server(httpServer, {
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, "../uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Serve uploaded files
+app.use(
+  "/uploads",
+  express.static(uploadsDir, {
+    setHeaders: (res, path) => {
+      res.set("Content-Disposition", "attachment");
+    },
+  })
+);
 
 // Swagger configuration
 const swaggerOptions = {
