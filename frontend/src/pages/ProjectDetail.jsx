@@ -175,13 +175,6 @@ const ProjectDetail = () => {
               Edit
             </Button>
             <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => navigate(`/projects/${projectId}/tasks/new`)}
-            >
-              New Task
-            </Button>
-            <Button
               variant="outlined"
               color="error"
               startIcon={<DeleteIcon />}
