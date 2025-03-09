@@ -13,14 +13,16 @@ import {
   Box,
   Chip,
   CircularProgress,
+  Alert,
 } from '@mui/material'
 import {
   Assignment as TaskIcon,
   AssignmentTurnedIn as CompletedIcon,
   Schedule as InProgressIcon,
   Warning as OverdueIcon,
+  Add as AddIcon,
 } from '@mui/icons-material'
-import axios from 'axios'
+import api from '../services/api'
 import { useAuth } from '../context/AuthContext'
 
 const Dashboard = () => {
@@ -35,15 +37,16 @@ const Dashboard = () => {
     const fetchData = async () => {
       try {
         const [tasksResponse, projectsResponse] = await Promise.all([
-          axios.get('/api/tasks/user'),
-          axios.get('/api/projects'),
+          api.get('/api/tasks/user'),
+          api.get('/api/projects'),
         ])
 
         setTasks(tasksResponse.data)
         setProjects(projectsResponse.data)
+        setError('')
       } catch (err) {
-        setError('Failed to fetch dashboard data')
-        console.error(err)
+        setError('Failed to fetch dashboard data. Please try again later.')
+        console.error('Dashboard error:', err)
       } finally {
         setLoading(false)
       }
@@ -53,29 +56,22 @@ const Dashboard = () => {
   }, [])
 
   const getTaskStatusColor = (status) => {
-    switch (status) {
-      case 'Completed':
-        return 'success'
-      case 'In Progress':
-        return 'primary'
-      case 'To-Do':
-        return 'default'
-      default:
-        return 'default'
+    const colors = {
+      'Not Started': 'default',
+      'In Progress': 'primary',
+      'Completed': 'success',
+      'Overdue': 'error',
     }
+    return colors[status] || 'default'
   }
 
   const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'High':
-        return 'error'
-      case 'Medium':
-        return 'warning'
-      case 'Low':
-        return 'success'
-      default:
-        return 'default'
+    const colors = {
+      'Low': 'success',
+      'Medium': 'warning',
+      'High': 'error',
     }
+    return colors[priority] || 'default'
   }
 
   if (loading) {
@@ -86,178 +82,141 @@ const Dashboard = () => {
     )
   }
 
-  if (error) {
-    return (
-      <Container>
-        <Typography color="error" align="center">
-          {error}
-        </Typography>
-      </Container>
-    )
-  }
-
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+    <Box>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Typography variant="h4" component="h1" gutterBottom>
+          Welcome back, {user?.name || 'User'}!
+        </Typography>
+        <Button
+          variant="contained"
+          color="primary"
+          startIcon={<AddIcon />}
+          onClick={() => navigate('/projects/new')}
+        >
+          New Project
+        </Button>
+      </Box>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      )}
+
       <Grid container spacing={3}>
-        {/* Welcome Section */}
-        <Grid item xs={12}>
-          <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
-            <Typography variant="h4" gutterBottom>
-              Welcome, {user.name}!
-            </Typography>
-            <Typography variant="subtitle1" color="text.secondary">
-              Here's an overview of your tasks and projects
-            </Typography>
-          </Paper>
-        </Grid>
-
-        {/* Task Statistics */}
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
-            <Typography variant="h6" gutterBottom>
-              Task Statistics
-            </Typography>
-            <List>
-              <ListItem>
-                <ListItemIcon>
-                  <TaskIcon />
-                </ListItemIcon>
-                <ListItemText primary="Total Tasks" secondary={tasks.length} />
-              </ListItem>
-              <ListItem>
-                <ListItemIcon>
-                  <CompletedIcon />
-                </ListItemIcon>
-                <ListItemText
-                  primary="Completed"
-                  secondary={tasks.filter((task) => task.status === 'Completed').length}
-                />
-              </ListItem>
-              <ListItem>
-                <ListItemIcon>
-                  <InProgressIcon />
-                </ListItemIcon>
-                <ListItemText
-                  primary="In Progress"
-                  secondary={tasks.filter((task) => task.status === 'In Progress').length}
-                />
-              </ListItem>
-              <ListItem>
-                <ListItemIcon>
-                  <OverdueIcon />
-                </ListItemIcon>
-                <ListItemText
-                  primary="Overdue"
-                  secondary={
-                    tasks.filter(
-                      (task) =>
-                        task.status !== 'Completed' &&
-                        new Date(task.dueDate) < new Date()
-                    ).length
-                  }
-                />
-              </ListItem>
-            </List>
-          </Paper>
-        </Grid>
-
-        {/* Recent Tasks */}
         <Grid item xs={12} md={8}>
-          <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="h6">Recent Tasks</Typography>
-              <Button variant="contained" onClick={() => navigate('/projects')}>
-                View All Tasks
-              </Button>
-            </Box>
-            <List>
-              {tasks.slice(0, 5).map((task) => (
-                <ListItem
-                  key={task._id}
-                  button
-                  onClick={() =>
-                    navigate(`/projects/${task.project._id}/tasks/${task._id}`)
-                  }
-                >
-                  <ListItemText
-                    primary={task.title}
-                    secondary={
-                      <Box component="span">
-                        <Typography component="span" variant="body2">
-                          {task.project.name}
-                        </Typography>
-                        {' • '}
-                        <Typography component="span" variant="body2">
-                          Due: {new Date(task.dueDate).toLocaleDateString()}
-                        </Typography>
-                      </Box>
-                    }
-                  />
-                  <Box>
-                    <Chip
-                      label={task.status}
-                      color={getTaskStatusColor(task.status)}
-                      size="small"
-                      sx={{ mr: 1 }}
-                    />
-                    <Chip
-                      label={task.priority}
-                      color={getPriorityColor(task.priority)}
-                      size="small"
-                    />
-                  </Box>
-                </ListItem>
-              ))}
-            </List>
-          </Paper>
-        </Grid>
-
-        {/* Active Projects */}
-        <Grid item xs={12}>
-          <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="h6">Active Projects</Typography>
-              <Button variant="contained" onClick={() => navigate('/projects')}>
-                View All Projects
-              </Button>
-            </Box>
-            <Grid container spacing={2}>
-              {projects.slice(0, 3).map((project) => (
-                <Grid item xs={12} sm={6} md={4} key={project._id}>
-                  <Paper
+          <Paper
+            elevation={0}
+            sx={{
+              p: 3,
+              height: '100%',
+              backgroundColor: 'background.paper',
+              borderRadius: 2,
+              border: '1px solid',
+              borderColor: 'divider',
+            }}
+          >
+            <Typography variant="h6" gutterBottom>
+              Recent Tasks
+            </Typography>
+            {tasks.length === 0 ? (
+              <Typography color="text.secondary">No tasks found.</Typography>
+            ) : (
+              <List>
+                {tasks.slice(0, 5).map((task) => (
+                  <ListItem
+                    key={task._id}
                     sx={{
-                      p: 2,
-                      cursor: 'pointer',
+                      mb: 1,
+                      borderRadius: 1,
                       '&:hover': {
-                        bgcolor: 'action.hover',
+                        backgroundColor: 'action.hover',
                       },
                     }}
-                    onClick={() => navigate(`/projects/${project._id}`)}
+                    button
+                    onClick={() => navigate(`/projects/${task.project}/tasks/${task._id}`)}
                   >
-                    <Typography variant="h6" gutterBottom>
-                      {project.name}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" gutterBottom>
-                      {project.description}
-                    </Typography>
-                    <Box display="flex" justifyContent="space-between" alignItems="center">
-                      <Typography variant="body2" color="text.secondary">
-                        {project.tasks.length} tasks
-                      </Typography>
+                    <ListItemIcon>
+                      <TaskIcon color="primary" />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={task.title}
+                      secondary={`Due: ${new Date(task.dueDate).toLocaleDateString()}`}
+                    />
+                    <Box>
                       <Chip
-                        label={project.status}
-                        color={project.status === 'Active' ? 'success' : 'default'}
+                        label={task.status}
+                        color={getTaskStatusColor(task.status)}
+                        size="small"
+                        sx={{ mr: 1 }}
+                      />
+                      <Chip
+                        label={task.priority}
+                        color={getPriorityColor(task.priority)}
                         size="small"
                       />
                     </Box>
-                  </Paper>
-                </Grid>
-              ))}
-            </Grid>
+                  </ListItem>
+                ))}
+              </List>
+            )}
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} md={4}>
+          <Paper
+            elevation={0}
+            sx={{
+              p: 3,
+              height: '100%',
+              backgroundColor: 'background.paper',
+              borderRadius: 2,
+              border: '1px solid',
+              borderColor: 'divider',
+            }}
+          >
+            <Typography variant="h6" gutterBottom>
+              Project Overview
+            </Typography>
+            {projects.length === 0 ? (
+              <Typography color="text.secondary">No projects found.</Typography>
+            ) : (
+              <List>
+                {projects.slice(0, 3).map((project) => (
+                  <ListItem
+                    key={project._id}
+                    sx={{
+                      mb: 1,
+                      borderRadius: 1,
+                      '&:hover': {
+                        backgroundColor: 'action.hover',
+                      },
+                    }}
+                    button
+                    onClick={() => navigate(`/projects/${project._id}`)}
+                  >
+                    <ListItemText
+                      primary={project.name}
+                      secondary={`${project.tasks?.length || 0} tasks`}
+                    />
+                  </ListItem>
+                ))}
+                {projects.length > 3 && (
+                  <Button
+                    color="primary"
+                    onClick={() => navigate('/projects')}
+                    sx={{ mt: 1 }}
+                  >
+                    View All Projects
+                  </Button>
+                )}
+              </List>
+            )}
           </Paper>
         </Grid>
       </Grid>
-    </Container>
+    </Box>
   )
 }
 

@@ -1,148 +1,99 @@
-import React, { useState } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
-import {
-  AppBar,
-  Box,
-  CssBaseline,
-  Drawer,
-  IconButton,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  Menu,
-  MenuItem,
-  Toolbar,
-  Typography,
-} from "@mui/material";
-import {
-  Menu as MenuIcon,
-  Dashboard as DashboardIcon,
-  Assignment as ProjectIcon,
-  Person as ProfileIcon,
-  ExitToApp as LogoutIcon,
-} from "@mui/icons-material";
-import { useAuth } from "../context/AuthContext";
-
-const drawerWidth = 240;
+import React from 'react';
+import { Box, Container, AppBar, Toolbar, Typography, IconButton, Avatar, Menu, MenuItem, Tooltip } from '@mui/material';
+import { useNavigate, Outlet } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const Layout = () => {
   const navigate = useNavigate();
-  const { logout } = useAuth();
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const { user, logout } = useAuth();
+  const [anchorEl, setAnchorEl] = React.useState(null);
 
-  const handleDrawerToggle = () => {
-    setMobileOpen(!mobileOpen);
-  }
+  const handleMenu = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
 
-
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
 
   const handleLogout = () => {
     logout();
-    navigate("/login");
+    handleClose();
+    navigate('/login');
   };
 
-  const menuItems = [
-    { text: "Dashboard", icon: <DashboardIcon />, path: "/" },
-    { text: "Projects", icon: <ProjectIcon />, path: "/projects" },
-    { text: "Profile", icon: <ProfileIcon />, path: "/profile" },
-  ];
-
-  const drawer = (
-    <div>
-      <Toolbar>
-        <Typography variant="h6" noWrap component="div">
-          Task Manager
-        </Typography>
-      </Toolbar>
-      <List>
-        {menuItems.map((item) => (
-          <ListItem button key={item.text} onClick={() => navigate(item.path)}>
-            <ListItemIcon>{item.icon}</ListItemIcon>
-            <ListItemText primary={item.text} />
-          </ListItem>
-        ))}
-        <ListItem button onClick={handleLogout}>
-          <ListItemIcon>
-            <LogoutIcon />
-          </ListItemIcon>
-          <ListItemText primary="Logout" />
-        </ListItem>
-      </List>
-    </div>
-  );
+  const handleProfile = () => {
+    handleClose();
+    navigate('/profile');
+  };
 
   return (
-    <Box sx={{ display: "flex" }}>
-      <CssBaseline />
-      <AppBar
-        position="fixed"
-        sx={{
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-          ml: { sm: `${drawerWidth}px` },
-        }}
-      >
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <AppBar position="fixed" elevation={0} sx={{ backgroundColor: 'background.paper', borderBottom: 1, borderColor: 'divider' }}>
         <Toolbar>
-          <IconButton
-            color="inherit"
-            aria-label="open drawer"
-            edge="start"
-            onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { sm: "none" } }}
+          <Typography
+            variant="h6"
+            component="div"
+            sx={{
+              flexGrow: 1,
+              color: 'primary.main',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+            onClick={() => navigate('/')}
           >
-            <MenuIcon />
-          </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            {menuItems.find((item) => item.path === window.location.pathname)
-              ?.text || "Task Manager"}
+            Donezo
           </Typography>
+          {user && (
+            <div>
+              <Tooltip title="Account settings">
+                <IconButton onClick={handleMenu} size="small">
+                  <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
+                    {user.name ? user.name[0].toUpperCase() : 'U'}
+                  </Avatar>
+                </IconButton>
+              </Tooltip>
+              <Menu
+                anchorEl={anchorEl}
+                open={Boolean(anchorEl)}
+                onClose={handleClose}
+                transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+                anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+              >
+                <MenuItem onClick={handleProfile}>Profile</MenuItem>
+                <MenuItem onClick={handleLogout}>Logout</MenuItem>
+              </Menu>
+            </div>
+          )}
         </Toolbar>
       </AppBar>
-      <Box
-        component="nav"
-        sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
-      >
-        <Drawer
-          variant="temporary"
-          open={mobileOpen}
-          onClose={handleDrawerToggle}
-          ModalProps={{
-            keepMounted: true, // Better open performance on mobile.
-          }}
-          sx={{
-            display: { xs: "block", sm: "none" },
-            "& .MuiDrawer-paper": {
-              boxSizing: "border-box",
-              width: drawerWidth,
-            },
-          }}
-        >
-          {drawer}
-        </Drawer>
-        <Drawer
-          variant="permanent"
-          sx={{
-            display: { xs: "none", sm: "block" },
-            "& .MuiDrawer-paper": {
-              boxSizing: "border-box",
-              width: drawerWidth,
-            },
-          }}
-          open
-        >
-          {drawer}
-        </Drawer>
-      </Box>
-      <Box
+      <Toolbar /> {/* Spacer for fixed AppBar */}
+      <Container
         component="main"
+        maxWidth="lg"
         sx={{
           flexGrow: 1,
-          p: 3,
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-          mt: "64px",
+          py: 4,
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
         <Outlet />
+      </Container>
+      <Box
+        component="footer"
+        sx={{
+          py: 3,
+          px: 2,
+          mt: 'auto',
+          backgroundColor: 'background.paper',
+          borderTop: 1,
+          borderColor: 'divider',
+        }}
+      >
+        <Typography variant="body2" color="text.secondary" align="center">
+          © {new Date().getFullYear()} Task Manager. All rights reserved.
+        </Typography>
       </Box>
     </Box>
   );
