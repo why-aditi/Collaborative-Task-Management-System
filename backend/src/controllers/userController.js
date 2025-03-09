@@ -1,5 +1,6 @@
 const User = require("../models/User");
 const jwt = require("jsonwebtoken");
+const { validationResult } = require("express-validator");
 
 // Generate JWT Token
 const generateToken = (userId) => {
@@ -11,13 +12,17 @@ const generateToken = (userId) => {
 // Register new user
 exports.register = async (req, res) => {
   try {
-    console.log("Registration request received:", req.body);
+    // Check for validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
     const { name, email, password, role } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      console.log("User already exists:", email);
       return res.status(400).json({ message: "User already exists" });
     }
 
@@ -29,23 +34,32 @@ exports.register = async (req, res) => {
       role: role || "Member",
     });
 
+    // Save user to database
     await user.save();
-    console.log("User created successfully:", email);
 
-    // Generate token
-    const token = generateToken(user._id);
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "24h" }
+    );
 
+    // Return success response
     res.status(201).json({
-      user: user.getPublicProfile(),
+      message: "User registered successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
       token,
     });
   } catch (error) {
     console.error("Registration error:", error);
-    res.status(400).json({
-      message: error.message,
-      details: error.errors
-        ? Object.values(error.errors).map((err) => err.message)
-        : undefined,
+    res.status(500).json({
+      message: "Error registering user",
+      error: error.message,
     });
   }
 };
