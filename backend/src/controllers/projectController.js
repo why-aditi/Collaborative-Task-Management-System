@@ -226,11 +226,12 @@ exports.deleteProject = async (req, res) => {
 
     // Delete all tasks associated with the project
     await Task.deleteMany({ project: project._id });
-    await project.remove();
+    await project.deleteOne();
 
     res.json({ message: "Project deleted successfully" });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
   }
 };
 

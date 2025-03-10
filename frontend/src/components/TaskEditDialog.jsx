@@ -339,6 +339,18 @@ const TaskEditDialog = ({ open, onClose, task, projectId, onTaskUpdated }) => {
       return;
     }
 
+    // Validate that project members are loaded and assignee is valid
+    if (projectMembers.length === 0) {
+      setError('Project members not loaded. Please try again.');
+      return;
+    }
+
+    const isValidAssignee = projectMembers.some(member => member.user._id === formData.assignee);
+    if (!isValidAssignee) {
+      setError('Selected assignee is not a member of the project');
+      return;
+    }
+
     if (!formData.dueDate) {
       setError('Due date is required');
       return;
@@ -354,8 +366,13 @@ const TaskEditDialog = ({ open, onClose, task, projectId, onTaskUpdated }) => {
       if (isNewTask) {
         // Create task first
         const taskData = {
-          ...formData,
+          title: formData.title,
+          description: formData.description,
           projectId: projectId,
+          assigneeId: formData.assignee,
+          dueDate: formData.dueDate,
+          priority: formData.priority,
+          estimatedHours: formData.estimatedHours
         };
         
         response = await axios.post('/api/tasks', taskData);

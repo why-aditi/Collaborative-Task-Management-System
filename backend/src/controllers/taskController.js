@@ -39,6 +39,13 @@ exports.createTask = async (req, res) => {
       return res.status(403).json({ message: "Access denied" });
     }
 
+    // Validate that assignee is a member of the project
+    if (!project.isMember(assigneeId)) {
+      return res
+        .status(400)
+        .json({ message: "Assignee must be a member of the project" });
+    }
+
     const task = new Task({
       title,
       description,
