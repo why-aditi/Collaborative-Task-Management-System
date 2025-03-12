@@ -13,22 +13,56 @@ const app = express();
 // Connect to MongoDB
 connectDB();
 
+// Log the environment variables for debugging (remove in production)
+console.log("FRONTEND_URL:", process.env.FRONTEND_URL);
+
 // Middleware
 app.use(
   cors({
     origin: (origin, callback) => {
-      const allowedOrigins = "*";
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
+      console.log("Request origin:", origin); // Debug: Log incoming request origin
+
+      // Check if FRONTEND_URL is properly defined
+      if (!process.env.FRONTEND_URL) {
+        console.error("FRONTEND_URL environment variable is not defined!");
+        return callback(null, true); // Allow all origins if env var is missing (not secure for production)
+      }
+
+      const allowedOrigins = process.env.FRONTEND_URL.split(",").map((url) =>
+        url.trim()
+      );
+      console.log("Allowed origins:", allowedOrigins); // Debug: Log allowed origins
+
+      if (!origin) {
+        // Allow requests with no origin (like mobile apps, postman, etc.)
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
       } else {
-        callback(new Error("Not allowed by CORS"));
+        console.error(
+          `Origin ${origin} not allowed by CORS policy. Allowed origins: ${allowedOrigins.join(
+            ", "
+          )}`
+        );
+        return callback(
+          new Error(`Origin ${origin} not allowed by CORS`),
+          false
+        );
       }
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
   })
 );
+
+// Add OPTIONS handler for all routes to respond properly to preflight requests
+app.options("*", cors());
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan("dev")); // Add logging
