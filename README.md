@@ -1,4 +1,4 @@
-# Collaborative Task Management System
+# Donezo
 
 A full-stack application for managing tasks and projects collaboratively.
 
