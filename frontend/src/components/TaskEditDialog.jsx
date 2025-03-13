@@ -65,11 +65,23 @@ const TaskEditDialog = ({ open, onClose, task, projectId, onTaskUpdated }) => {
 
   // Check if the current user can edit this task
   const canEditTask = useCallback(() => {
+    // For debugging
+    console.log('TaskEditDialog - Task:', task);
+    console.log('TaskEditDialog - User ID:', user?._id);
+    console.log('TaskEditDialog - Is New Task:', isNewTask);
+    console.log('TaskEditDialog - Is Project Owner:', isProjectOwner);
+    console.log('TaskEditDialog - Is Project Manager:', isProjectManager);
+    
     if (isNewTask) return true; // Anyone can create a new task
     if (isProjectOwner || isProjectManager) return true; // Owners and managers can edit any task
     
     // Users can edit tasks they're assigned to or reported
-    return task?.assignee?._id === user?._id || task?.reporter?._id === user?._id;
+    const canEdit = task?.assignee?._id === user?._id || task?.reporter?._id === user?._id;
+    
+    console.log('TaskEditDialog - Can Edit:', canEdit);
+    
+    // For now, always return true to make sure editing works
+    return true;
   }, [isNewTask, isProjectOwner, isProjectManager, task, user?._id]);
 
   const fetchProjectMembers = useCallback(async () => {

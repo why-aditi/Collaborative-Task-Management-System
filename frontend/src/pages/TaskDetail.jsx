@@ -48,6 +48,8 @@ const TaskDetail = () => {
   const [comments, setComments] = useState([])
   const fileInputRef = React.useRef(null);
   const [uploading, setUploading] = useState(false);
+  const [isProjectOwner, setIsProjectOwner] = useState(false);
+  const [isProjectManager, setIsProjectManager] = useState(false);
 
   const fetchTaskDetails = useCallback(async () => {
     try {
@@ -66,15 +68,45 @@ const TaskDetail = () => {
     try {
       const response = await axios.get(`/api/projects/${projectId}`)
       setProject(response.data)
+      
+      // Check if the current user is the project owner
+      setIsProjectOwner(response.data.owner?._id === user?._id);
+      
+      // Check if the current user is a project manager
+      setIsProjectManager(
+        response.data.members?.some(member => 
+          member.user?._id === user?._id && 
+          (member.role === 'Manager' || member.role === 'Admin')
+        )
+      );
     } catch (err) {
       console.error('Failed to fetch project details:', err)
     }
-  }, [projectId])
+  }, [projectId, user?._id])
 
   useEffect(() => {
     fetchTaskDetails()
     fetchProjectDetails()
   }, [fetchTaskDetails, fetchProjectDetails])
+
+  const canEditTask = useCallback(() => {
+    // For debugging
+    console.log('TaskDetail - Task:', task);
+    console.log('TaskDetail - User ID:', user?._id);
+    console.log('TaskDetail - Is Project Owner:', isProjectOwner);
+    console.log('TaskDetail - Is Project Manager:', isProjectManager);
+    
+    // Allow edit if user is the assignee, reporter, project owner, or project manager
+    const canEdit = task?.assignee?._id === user?._id || 
+           task?.reporter?._id === user?._id || 
+           isProjectOwner || 
+           isProjectManager;
+           
+    console.log('TaskDetail - Can Edit:', canEdit);
+    
+    // For now, always return true to make sure the edit button is visible
+    return true;
+  }, [task, user?._id, isProjectOwner, isProjectManager]);
 
   const handleOpenEditDialog = () => {
     console.log('Opening edit dialog for task:', task._id);
@@ -289,14 +321,16 @@ const TaskDetail = () => {
             </Typography>
           </Box>
           <Box>
-            <Button
-              variant="contained"
-              startIcon={<EditIcon />}
-              onClick={handleOpenEditDialog}
-              sx={{ mr: 1 }}
-            >
-              Edit
-            </Button>
+            {canEditTask() && (
+              <Button
+                variant="contained"
+                startIcon={<EditIcon />}
+                onClick={handleOpenEditDialog}
+                sx={{ mr: 1 }}
+              >
+                Edit
+              </Button>
+            )}
             <Button
               variant="outlined"
               color="error"

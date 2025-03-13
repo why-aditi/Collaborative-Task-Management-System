@@ -150,7 +150,11 @@ const Dashboard = () => {
                       },
                     }}
                     button
-                    onClick={() => navigate(`/projects/${task.project}/tasks/${task._id}`)}
+                    onClick={() => {
+                      // Handle both cases where task.project might be an object or a string
+                      const projectId = typeof task.project === 'object' ? task.project._id : task.project;
+                      navigate(`/projects/${projectId}`);
+                    }}
                   >
                     <ListItemIcon>
                       <TaskIcon color="primary" />

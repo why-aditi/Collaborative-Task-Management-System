@@ -52,7 +52,7 @@ const TaskForm = () => {
       setFormData({
         title: task.title,
         description: task.description,
-        projectId: task.project._id,
+        projectId: typeof task.project === 'object' ? task.project._id : task.project,
         assigneeId: task.assignee._id,
         dueDate: new Date(task.dueDate),
         priority: task.priority,

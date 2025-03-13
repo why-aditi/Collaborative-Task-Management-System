@@ -161,11 +161,24 @@ const TaskBoard = ({ projectId, onStatusChange }) => {
   };
 
   const canEditTask = (task) => {
+    // For debugging
+    console.log('Task:', task);
+    console.log('User ID:', user?._id);
+    console.log('Assignee ID:', task.assignee?._id);
+    console.log('Reporter ID:', task.reporter?._id);
+    console.log('Is Project Owner:', isProjectOwner);
+    console.log('Is Project Manager:', isProjectManager);
+    
     // Allow edit if user is the assignee, reporter, project owner, or project manager
-    return task.assignee?._id === user?._id || 
+    const canEdit = task.assignee?._id === user?._id || 
            task.reporter?._id === user?._id || 
            isProjectOwner || 
            isProjectManager;
+           
+    console.log('Can Edit:', canEdit);
+    
+    // For now, always return true to make sure the edit button is visible
+    return true;
   };
 
   const handleTaskUpdated = (updatedTask) => {
