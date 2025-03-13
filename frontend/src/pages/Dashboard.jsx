@@ -24,6 +24,7 @@ import {
 } from '@mui/icons-material'
 import api from '../services/api'
 import { useAuth } from '../context/AuthContext'
+import ProjectEditDialog from '../components/ProjectEditDialog'
 
 const Dashboard = () => {
   const navigate = useNavigate()
@@ -32,6 +33,7 @@ const Dashboard = () => {
   const [projects, setProjects] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [openProjectDialog, setOpenProjectDialog] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -74,6 +76,19 @@ const Dashboard = () => {
     return colors[priority] || 'default'
   }
 
+  const handleOpenProjectDialog = () => {
+    setOpenProjectDialog(true)
+  }
+
+  const handleCloseProjectDialog = () => {
+    setOpenProjectDialog(false)
+  }
+
+  const handleProjectUpdated = (newProject) => {
+    // Navigate to the project detail page
+    navigate(`/projects/${newProject._id}`)
+  }
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
@@ -92,7 +107,7 @@ const Dashboard = () => {
           variant="contained"
           color="primary"
           startIcon={<AddIcon />}
-          onClick={() => navigate('/projects/new')}
+          onClick={handleOpenProjectDialog}
         >
           New Project
         </Button>
@@ -216,6 +231,14 @@ const Dashboard = () => {
           </Paper>
         </Grid>
       </Grid>
+
+      {/* Project Edit Dialog */}
+      <ProjectEditDialog
+        open={openProjectDialog}
+        onClose={handleCloseProjectDialog}
+        project={null}
+        onProjectUpdated={handleProjectUpdated}
+      />
     </Box>
   )
 }

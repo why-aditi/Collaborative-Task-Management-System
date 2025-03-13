@@ -29,6 +29,7 @@ import {
 } from '@mui/icons-material'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
+import ProjectEditDialog from '../components/ProjectEditDialog'
 
 const ProjectList = () => {
   const navigate = useNavigate()
@@ -39,12 +40,6 @@ const ProjectList = () => {
   const [openDialog, setOpenDialog] = useState(false)
   const [anchorEl, setAnchorEl] = useState(null)
   const [selectedProject, setSelectedProject] = useState(null)
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    startDate: '',
-    endDate: '',
-  })
 
   useEffect(() => {
     fetchProjects()
@@ -63,23 +58,13 @@ const ProjectList = () => {
   }
 
   const handleOpenDialog = () => {
-    setFormData({
-      name: '',
-      description: '',
-      startDate: '',
-      endDate: '',
-    })
+    setSelectedProject(null)
     setOpenDialog(true)
   }
 
   const handleCloseDialog = () => {
     setOpenDialog(false)
-    setFormData({
-      name: '',
-      description: '',
-      startDate: '',
-      endDate: '',
-    })
+    setSelectedProject(null)
   }
 
   const handleMenuOpen = (event, project) => {
@@ -89,31 +74,11 @@ const ProjectList = () => {
 
   const handleMenuClose = () => {
     setAnchorEl(null)
-    setSelectedProject(null)
   }
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
-  }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    try {
-      if (selectedProject) {
-        await axios.put(`/api/projects/${selectedProject._id}`, formData)
-      } else {
-        await axios.post('/api/projects', formData)
-      }
-      fetchProjects()
-      handleCloseDialog()
-    } catch (err) {
-      setError('Failed to save project')
-      console.error(err)
-    }
+  const handleEdit = () => {
+    setOpenDialog(true)
+    handleMenuClose()
   }
 
   const handleDelete = async () => {
@@ -127,15 +92,12 @@ const ProjectList = () => {
     }
   }
 
-  const handleEdit = () => {
-    setFormData({
-      name: selectedProject.name,
-      description: selectedProject.description,
-      startDate: selectedProject.startDate,
-      endDate: selectedProject.endDate,
-    })
-    setOpenDialog(true)
-    handleMenuClose()
+  const handleProjectUpdated = (updatedProject) => {
+    fetchProjects()
+    // If it's a new project, navigate to the project detail page
+    if (!selectedProject) {
+      navigate(`/projects/${updatedProject._id}`)
+    }
   }
 
   if (loading) {
@@ -226,64 +188,13 @@ const ProjectList = () => {
         ))}
       </Grid>
 
-      {/* Project Form Dialog */}
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {selectedProject ? 'Edit Project' : 'Create New Project'}
-        </DialogTitle>
-        <form onSubmit={handleSubmit}>
-          <DialogContent>
-            <TextField
-              autoFocus
-              margin="dense"
-              name="name"
-              label="Project Name"
-              type="text"
-              fullWidth
-              required
-              value={formData.name}
-              onChange={handleInputChange}
-            />
-            <TextField
-              margin="dense"
-              name="description"
-              label="Description"
-              type="text"
-              fullWidth
-              multiline
-              rows={3}
-              value={formData.description}
-              onChange={handleInputChange}
-            />
-            <TextField
-              margin="dense"
-              name="startDate"
-              label="Start Date"
-              type="date"
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-              value={formData.startDate}
-              onChange={handleInputChange}
-            />
-            <TextField
-              margin="dense"
-              name="endDate"
-              label="End Date"
-              type="date"
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-              value={formData.endDate}
-              onChange={handleInputChange}
-            />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={handleCloseDialog}>Cancel</Button>
-            <Button type="submit" variant="contained">
-              {selectedProject ? 'Update' : 'Create'}
-            </Button>
-          </DialogActions>
-        </form>
-      </Dialog>
+      {/* Project Edit Dialog */}
+      <ProjectEditDialog
+        open={openDialog}
+        onClose={handleCloseDialog}
+        project={selectedProject}
+        onProjectUpdated={handleProjectUpdated}
+      />
 
       {/* Project Menu */}
       <Menu
@@ -308,4 +219,4 @@ const ProjectList = () => {
   )
 }
 
-export default ProjectList 
+export default ProjectList
