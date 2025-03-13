@@ -2,6 +2,12 @@
 
 A full-stack application for managing tasks and projects collaboratively.
 
+## Demo Video
+
+https://github.com/user-attachments/assets/ff7e3b98-ba6f-4e18-8612-38dba05db73e
+
+
+
 ## Project Structure
 
 ```
