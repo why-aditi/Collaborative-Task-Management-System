@@ -1,13 +1,16 @@
 import axios from "axios";
-import { API_URL } from "./config";
 
-// Create axios instance with base URL
-const axiosInstance = axios.create({
-  baseURL: API_URL,
-});
+// Get the base URL from environment variables or use a default
+const baseURL = import.meta.env.VITE_API_BASE_URL;
+
+console.log("Using API base URL:", baseURL);
+
+// Configure axios defaults
+axios.defaults.baseURL = baseURL;
+axios.defaults.withCredentials = true; // Required for cookies/session
 
 // Add request interceptor to add auth token
-axiosInstance.interceptors.request.use(
+axios.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token");
     if (token) {
@@ -20,4 +23,4 @@ axiosInstance.interceptors.request.use(
   }
 );
 
-export default axiosInstance;
+export default axios;
