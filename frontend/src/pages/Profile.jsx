@@ -4,20 +4,10 @@ import {
   Paper,
   Typography,
   Box,
-  Button,
   Avatar,
   Grid,
   Card,
   CardContent,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem as SelectMenuItem,
 } from '@mui/material'
 import {
   Person as PersonIcon,
@@ -32,19 +22,11 @@ import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 
 const Profile = () => {
-  const { user, updateUser } = useAuth()
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [openDialog, setOpenDialog] = useState(false)
+  const { user } = useAuth()
   const [stats, setStats] = useState({
     totalTasks: 0,
     completedTasks: 0,
     activeProjects: 0,
-  })
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    role: '',
   })
 
   useEffect(() => {
@@ -57,43 +39,6 @@ const Profile = () => {
       setStats(response.data)
     } catch (err) {
       console.error('Failed to fetch user stats:', err)
-    }
-  }
-
-  const handleOpenDialog = () => {
-    setFormData({
-      name: user.name,
-      email: user.email,
-      role: user.role,
-    })
-    setOpenDialog(true)
-  }
-
-  const handleCloseDialog = () => {
-    setOpenDialog(false)
-  }
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
-  }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
-
-    try {
-      const response = await axios.patch('/api/users/profile', formData)
-      updateUser(response.data)
-      handleCloseDialog()
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to update profile')
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -120,12 +65,6 @@ const Profile = () => {
               </Typography>
             </Box>
           </Box>
-          <Button
-            variant="outlined"
-            onClick={handleOpenDialog}
-          >
-            Edit Profile
-          </Button>
         </Box>
 
         <Grid container spacing={3}>
@@ -235,58 +174,6 @@ const Profile = () => {
           </Grid>
         </Grid>
       </Paper>
-
-      {/* Edit Profile Dialog */}
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>Edit Profile</DialogTitle>
-        <form onSubmit={handleSubmit}>
-          <DialogContent>
-            <TextField
-              autoFocus
-              margin="dense"
-              name="name"
-              label="Full Name"
-              type="text"
-              fullWidth
-              required
-              value={formData.name}
-              onChange={handleInputChange}
-            />
-            <TextField
-              margin="dense"
-              name="email"
-              label="Email Address"
-              type="email"
-              fullWidth
-              required
-              value={formData.email}
-              onChange={handleInputChange}
-            />
-            <FormControl fullWidth margin="dense">
-              <InputLabel>Role</InputLabel>
-              <Select
-                name="role"
-                value={formData.role}
-                onChange={handleInputChange}
-                label="Role"
-              >
-                <SelectMenuItem value="Manager">Manager</SelectMenuItem>
-                <SelectMenuItem value="Member">Member</SelectMenuItem>
-              </Select>
-            </FormControl>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={handleCloseDialog}>Cancel</Button>
-            <Button
-              type="submit"
-              variant="contained"
-              disabled={loading}
-            >
-              {loading ? 'Updating...' : 'Update Profile'}
-            </Button>
-          </DialogActions>
-        </form>
-      </Dialog>
     </Container>
   )
 }

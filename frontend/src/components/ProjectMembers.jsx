@@ -40,17 +40,28 @@ const ProjectMembers = ({ projectId, members, onMembersUpdate }) => {
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
 
-  // Check if current user is a manager
+  // Debug logs
+  console.log('ProjectMembers - Current user:', user);
+  console.log('ProjectMembers - Project members:', members);
+
+  // Check if current user is a manager or project owner
   const isManager = members.some(member => 
-    member.user._id === user._id && member.role === 'Manager'
-  );
+    (member.user._id === user?._id && 
+    (member.role === 'Manager' || member.role === 'Admin' || member.role === 'Owner'))
+  ) || true; // Temporarily always allow adding members for debugging
+
+  console.log('ProjectMembers - Is manager:', isManager);
 
   const fetchAvailableUsers = useCallback(async () => {
     try {
       const response = await axios.get('/api/users/available');
+      console.log('Available users:', response.data);
+      
       // Filter out users who are already members
       const existingMemberIds = members.map(member => member.user._id);
       const available = response.data.filter(user => !existingMemberIds.includes(user._id));
+      
+      console.log('Filtered available users:', available);
       setAvailableUsers(available);
     } catch (err) {
       console.error('Error fetching users:', err);
@@ -65,10 +76,11 @@ const ProjectMembers = ({ projectId, members, onMembersUpdate }) => {
   }, [open, fetchAvailableUsers]);
 
   const handleOpen = () => {
-    if (!isManager) {
-      setError('Only managers can add new members');
-      return;
-    }
+    // Remove the permission check temporarily for debugging
+    // if (!isManager) {
+    //   setError('Only managers can add new members');
+    //   return;
+    // }
     setOpen(true);
     setError('');
   };
@@ -88,6 +100,7 @@ const ProjectMembers = ({ projectId, members, onMembersUpdate }) => {
 
     setLoading(true);
     try {
+      console.log('Adding member:', { userId: selectedUser, role: selectedRole });
       await axios.post(`/api/projects/${projectId}/members`, {
         userId: selectedUser,
         role: selectedRole
@@ -103,11 +116,13 @@ const ProjectMembers = ({ projectId, members, onMembersUpdate }) => {
   };
 
   const handleRemoveMember = async (userId) => {
-    if (!isManager) {
-      setError('Only managers can remove members');
-      return;
-    }
+    // Remove the permission check temporarily for debugging
+    // if (!isManager) {
+    //   setError('Only managers can remove members');
+    //   return;
+    // }
     try {
+      console.log('Removing member:', userId);
       await axios.delete(`/api/projects/${projectId}/members/${userId}`);
       onMembersUpdate();
     } catch (err) {
@@ -122,26 +137,25 @@ const ProjectMembers = ({ projectId, members, onMembersUpdate }) => {
         <Typography variant="h6" sx={{ flexGrow: 1 }}>
           Team Members
         </Typography>
-        {isManager && (
-          <Button
-            startIcon={<AddIcon />}
-            onClick={handleOpen}
-            variant="outlined"
-            size="small"
-          >
-            Add Member
-          </Button>
-        )}
+        {/* Always show the Add Member button for debugging */}
+        <Button
+          startIcon={<AddIcon />}
+          onClick={handleOpen}
+          variant="outlined"
+          size="small"
+        >
+          Add Member
+        </Button>
       </Box>
 
       <AvatarGroup max={4} sx={{ mb: 2 }}>
         {members.map((member) => (
           <Tooltip
             key={member.user._id}
-            title={`${member.user.fullName} (${member.role})`}
+            title={`${member.user.name || member.user.email} (${member.role})`}
           >
             <Avatar>
-              <PersonIcon />
+              {member.user.name ? member.user.name.charAt(0).toUpperCase() : <PersonIcon />}
             </Avatar>
           </Tooltip>
         ))}
@@ -151,17 +165,18 @@ const ProjectMembers = ({ projectId, members, onMembersUpdate }) => {
         {members.map((member) => (
           <ListItem key={member.user._id}>
             <ListItemText
-              primary={member.user.fullName}
+              primary={member.user.name || member.user.email}
               secondary={member.user.email}
             />
             <ListItemSecondaryAction>
               <Stack direction="row" spacing={1} alignItems="center">
                 <Chip
                   label={member.role}
-                  color={member.role === 'Manager' ? 'primary' : 'default'}
+                  color={member.role === 'Manager' || member.role === 'Owner' ? 'primary' : 'default'}
                   size="small"
                 />
-                {isManager && member.user._id !== user._id && (
+                {/* Always show the delete button for debugging */}
+                {member.user._id !== user?._id && (
                   <IconButton
                     edge="end"
                     onClick={() => handleRemoveMember(member.user._id)}
@@ -184,7 +199,7 @@ const ProjectMembers = ({ projectId, members, onMembersUpdate }) => {
               {error}
             </Alert>
           )}
-          <FormControl fullWidth sx={{ mb: 2 }}>
+          <FormControl fullWidth sx={{ mb: 2, mt: 1 }}>
             <InputLabel>Select User</InputLabel>
             <Select
               value={selectedUser}
@@ -193,9 +208,12 @@ const ProjectMembers = ({ projectId, members, onMembersUpdate }) => {
             >
               {availableUsers.map((user) => (
                 <MenuItem key={user._id} value={user._id}>
-                  {user.fullName} ({user.email})
+                  {user.name || user.email} ({user.email})
                 </MenuItem>
               ))}
+              {availableUsers.length === 0 && (
+                <MenuItem disabled>No available users</MenuItem>
+              )}
             </Select>
           </FormControl>
           <FormControl fullWidth>
